@@ -5,6 +5,8 @@
 /*  directory structure                                                   */
 /*------------------------------------------------------------------------*/
 
+#include <array>
+
 #include "gtest/gtest.h"
 #include "UnitTestUtils.h"
 #include "ngp_utils/NgpTypes.h"
@@ -17,33 +19,31 @@ struct BaseClass
 {
   KOKKOS_FUNCTION virtual ~BaseClass() {} 
   KOKKOS_FUNCTION virtual void Warning(int,
-    SharedMemView<DoubleType**, DeviceShmem>&,
-    SharedMemView<DoubleType***, DeviceShmem>&) { }
+    std::array<DoubleType,3> &,
+    std::array<DoubleType,3> &){}
   KOKKOS_FUNCTION virtual void NoWarning(
-    SharedMemView<DoubleType**, DeviceShmem>&,
-    SharedMemView<DoubleType***, DeviceShmem>&,   
-    SharedMemView<DoubleType***, DeviceShmem>&) { }
-};
-struct DerivedClass : public BaseClass {
-  KOKKOS_FUNCTION virtual ~DerivedClass() {} 
+    std::array<DoubleType,3> &,
+    std::array<DoubleType,3> &){}
 };
 
 class NgpCompileTest : public ::testing::Test {};
 
 void show_cuda_compiler_warning()
 {
-  auto derived = sierra::nalu::create_device_expression<DerivedClass>();
+  const std::string debuggingName("show_cuda_compiler_warning");
+  BaseClass* base = kokkos_malloc_on_device<BaseClass>(debuggingName);
+  Kokkos::parallel_for(debuggingName, 1, KOKKOS_LAMBDA (const int) {
+    new (base) BaseClass();
+  });
+
   using ShmemType = typename NGPMeshTraits<ngp::Mesh>::ShmemType;
-  Kokkos::parallel_for(1, KOKKOS_LAMBDA(const size_t&i) {
-    SharedMemView<DoubleType**,  ShmemType> D2;
-    SharedMemView<DoubleType***, ShmemType> D3;
-    if (!i) {
+  Kokkos::parallel_for(1, KOKKOS_LAMBDA(const size_t&) {
+    std::array<DoubleType,3> D0;
 #define TRIGGER_WARNING
 #ifdef TRIGGER_WARNING
-      derived->Warning(0, D2, D3);
+    base->Warning(0, D0, D0);
 #endif
-      derived->NoWarning(D2, D3, D3);
-    }
+    base->NoWarning(D0, D0);
   });
 }
 
