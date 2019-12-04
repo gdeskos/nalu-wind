@@ -28,6 +28,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)    # Do not enable GNU extensions
 set(CMAKE_CXX_STANDARD_REQUIRED) # Force error if C++11 standard is not supported
 
 find_package(MPI REQUIRED)
+if(MPI_FOUND)
+  message(STATUS "Found MPI = ${MPI_DIR}")
+endif()
 include_directories(SYSTEM ${MPI_C_INCLUDE_PATH})
 include_directories(SYSTEM ${MPI_CXX_INCLUDE_PATH})
 include_directories(SYSTEM ${MPI_Fortran_INCLUDE_PATH})

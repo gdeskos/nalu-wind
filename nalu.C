@@ -4,7 +4,7 @@
 /*  in the file, LICENSE, which is located in the top-level Nalu          */
 /*  directory structure                                                   */
 /*------------------------------------------------------------------------*/
-
+// G Deskos version
 
 #include <mpi.h>
 #include <stk_util/diag/PrintTimer.hpp>
