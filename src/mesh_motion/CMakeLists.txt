@@ -11,6 +11,7 @@ add_sources(GlobalSourceList
    MeshMotionAlg.C
    MotionBase.C
    MotionPulsatingSphere.C
+   MotionWaves.C
    MotionRotation.C
    MotionScaling.C
    MotionTranslation.C
