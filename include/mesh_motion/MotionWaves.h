@@ -50,7 +50,7 @@ private:
 
   void load(const YAML::Node&);
 
-  void scaling_mat(const double, const double*);
+  void translation_mat(const ThreeDVecType&);
 
   std::string waveModel_{"Linear_prescribed"};   
   double amplitude_{0.1};
