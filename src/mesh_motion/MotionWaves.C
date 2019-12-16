@@ -30,7 +30,7 @@ void MotionWaves::load(const YAML::Node& node)
 	
 	get_if_present(node,"wave_motion_model", waveModel_, waveModel_);
 
-  if (waveModel_=="Linear_precibed"){
+  if (waveModel_=="Linear_prescribed"){
   get_if_present(node, "amplitude", amplitude_, amplitude_);
   get_if_present(node, "waveperiod", waveperiod_, waveperiod_);	
 	get_if_present(node, "wavelength",wavelength_,wavelength_); 
@@ -60,43 +60,30 @@ void MotionWaves::build_transformation(
 
   double motionTime = (time < endTime_)? time : endTime_;
 
-  scaling_mat(motionTime,xyz);
+	ThreeDVecType curr_disp={};
+	curr_disp[0]=0.;
+	curr_disp[1]=0.;
+
+	if(waveModel_== "Linear_prescribed"){
+	curr_disp[2]=sealevelz_+amplitude_*std::cos(2*M_PI/wavelength_*xyz[0]-2*M_PI/waveperiod_*time)*std::exp(-0.1*xyz[2]/amplitude_);
+  }
+	else if (waveModel_ =="HOS"){
+	
+	}
+	else {
+    throw std::runtime_error("invalid wave_motion model specified ");
+	}
+	translation_mat(curr_disp);
 }
 
-void MotionWaves::scaling_mat(
-  const double time,
-  const double* xyz)
+void MotionWaves::translation_mat(const ThreeDVecType& curr_disp)
 {
   reset_mat(transMat_);
 
-  double eta = sealevelz_+amplitude_*std::cos(2.*M_PI/wavelength_*xyz[0]-2*M_PI/waveperiod_*time);
-  double vertical_scaling = eta;
-
-
-  // Build matrix for translating object to cartesian origin
-  transMat_[0][3] = -xyz[0];
-  transMat_[1][3] = -xyz[1];
-  transMat_[2][3] = -sealevelz_;
-
-  // Build matrix for scaling object
-  TransMatType currTransMat = {};
-
-  currTransMat[0][0] = 0.;
-  currTransMat[1][1] = 0.;
-  currTransMat[2][2] = eta;
-  currTransMat[3][3] = 1.0;
-
-  // composite addition of motions in current group
-  transMat_ = add_motion(currTransMat,transMat_);
-
-  // Build matrix for translating object back to its origin
-  reset_mat(currTransMat);
-  currTransMat[0][3] = xyz[0];
-  currTransMat[1][3] = xyz[1];
-  currTransMat[2][3] = sealevelz_;
-
-  // composite addition of motions
-  transMat_ = add_motion(currTransMat,transMat_);
+  // Build matrix for translating object
+  transMat_[0][3] = curr_disp[0];
+  transMat_[1][3] = curr_disp[1];
+  transMat_[2][3] = curr_disp[2];
 }
 
 MotionBase::ThreeDVecType MotionWaves::compute_velocity(
@@ -113,7 +100,7 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
 
 	vel[0] = 0.;
 	vel[1] = 0.;
-  vel[2] = WaveVelocity * (mxyz[2]-sealevelz_);
+  vel[2] = WaveVelocity ;
 
   return vel;
 }
