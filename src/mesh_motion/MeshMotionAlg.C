@@ -1,4 +1,3 @@
-
 #include "mesh_motion/MeshMotionAlg.h"
 
 #include "mesh_motion/FrameInertial.h"
