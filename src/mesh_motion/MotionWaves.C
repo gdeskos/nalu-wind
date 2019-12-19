@@ -96,12 +96,18 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
 
   if( (time < startTime_) || (time > endTime_) ) return vel;
 
-  double VerticalWaveVelocity = amplitude_*2*M_PI/waveperiod_*std::sin(2.*M_PI/wavelength_*mxyz[0]-2*M_PI/waveperiod_*time);
+  double VerticalWaveVelocity = amplitude_*2*M_PI/waveperiod_*std::sin(2.*M_PI/wavelength_*mxyz[0]-2*M_PI/waveperiod_*time)*std::exp(-0.1*mxyz[2]/amplitude_);
+  
+  double eps = std::numeric_limits<double>::epsilon();
 
-	vel[0] = wavelength_/waveperiod_;
+  if (mxyz[2]>sealevelz_+eps) {
+	vel[0] = 0;
+  }else{
+  vel[0] = wavelength_/waveperiod_;
+	}
 	vel[1] = 0.;
-  vel[2] = VerticalWaveVelocity ;
-
+	vel[2] = VerticalWaveVelocity ;
+	
   return vel;
 }
 
