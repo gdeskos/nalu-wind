@@ -100,11 +100,11 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
   
   double eps = std::numeric_limits<double>::epsilon();
 
-  if (mxyz[2]>sealevelz_+eps) {
+  //if (mxyz[2]>sealevelz_+eps) {
 	vel[0] = 0;
-  }else{
-  vel[0] = wavelength_/waveperiod_;
-	}
+  //}else{
+  //vel[0] = wavelength_/waveperiod_;
+	//}
 	vel[1] = 0.;
 	vel[2] = VerticalWaveVelocity ;
 	
