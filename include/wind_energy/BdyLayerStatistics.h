@@ -102,9 +102,12 @@ public:
 
   //! Process the velocity data and compute averages
   void impl_compute_velocity_stats();
-
+ 
   //! Process the temperature field and compute averages
   void impl_compute_temperature_stats();
+  
+  //! Process the SFS data and compute averages
+  void impl_compute_sfs_stats();
 
 private:
   BdyLayerStatistics() = delete;
@@ -257,6 +260,12 @@ private:
   //! Name of the NetCDF file where statistics are output
   std::string bdyStatsFile_{"abl_statistics.nc"};
 
+  //! Prefix of the output stat file
+  std::string statsPrefix_{"abl"}; 
+ 
+  //! Calculate LES statistics
+  bool calcLESStats_{false};
+  
   //! Friction velocity average
   double uTauAvg_{0.0};
 
@@ -278,7 +287,7 @@ private:
   std::unique_ptr<BdyHeightAlgorithm> bdyHeightAlg_;
 
   //! Calculate temperature statistics
-  bool calcTemperatureStats_{true};
+  bool calcTemperatureStats_{false};
 
   //! Flag indicating whether uTau history is processed
   bool hasUTau_{true};

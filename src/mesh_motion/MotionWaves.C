@@ -35,6 +35,9 @@ void MotionWaves::load(const YAML::Node& node)
   get_if_present(node, "waveperiod", waveperiod_, waveperiod_);	
 	get_if_present(node, "wavelength",wavelength_,wavelength_); 
 	}
+  else if (waveModel_=="StokesThirdOrder_prescribed"){
+  
+  }
 	else if (waveModel_ == "HOS"){
 
 	}
@@ -60,13 +63,21 @@ void MotionWaves::build_transformation(
 
   double motionTime = (time < endTime_)? time : endTime_;
 
+	double k=2.*M_PI/wavelength_;
+  double omega=2.*M_PI/waveperiod_;
+  double phase=k*xyz[0]-omega*motionTime;
+
 	ThreeDVecType curr_disp={};
 	curr_disp[0]=0.;
 	curr_disp[1]=0.;
-
+	
+	
 	if(waveModel_== "Linear_prescribed"){
-	curr_disp[2]=sealevelz_+amplitude_*std::cos(2*M_PI/wavelength_*xyz[0]-2*M_PI/waveperiod_*time)*std::exp(-0.1*xyz[2]/amplitude_);
+	curr_disp[2]=sealevelz_+amplitude_*std::cos(phase)*std::exp(-0.1*xyz[2]/amplitude_);
   }
+	else if (waveModel_ == "StokesThirdOrder_prescribed"){
+	curr_disp[2]=sealevelz_*((1.0-1.0/16.0*(k*amplitude_)*(k*amplitude_))*std::cos(phase)+1.0/2.0*(k*amplitude_)*std::cos(2.*phase)+3./8.*(k*amplitude_)*(k*amplitude_)*std::cos(3*phase));
+	}
 	else if (waveModel_ =="HOS"){
 	
 	}
@@ -95,12 +106,33 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
   ThreeDVecType vel = {};
 
   if( (time < startTime_) || (time > endTime_) ) return vel;
+  
+  double motionTime = (time < endTime_)? time : endTime_;
 
-  double omega;
+	double k=2.*M_PI/wavelength_;
+  double omega=2.*M_PI/waveperiod_;
+  double phase=k*mxyz[0]-omega*motionTime;
+  double VerticalWaveVelocity;
+  double HorizontalWaveVelocity;
+	
+  if(waveModel_== "Linear_prescribed"){
+  VerticalWaveVelocity = amplitude_*omega*std::sin(phase)*std::exp(-0.1*mxyz[2]/amplitude_);  
+  HorizontalWaveVelocity = amplitude_*omega*std::cos(phase);
+  }
+	else if (waveModel_ == "StokesThirdOrder_prescribed"){
+  VerticalWaveVelocity=0.;
+  HorizontalWaveVelocity=0.;	
+  }
+	else if (waveModel_ =="HOS"){
+  VerticalWaveVelocity=0.;
+  HorizontalWaveVelocity=0.;		
+	}
+	else {
+    throw std::runtime_error("invalid wave_motion model specified ");
+	}
+
   double eps = std::numeric_limits<double>::epsilon();
   
-  double VerticalWaveVelocity = amplitude_*2.*M_PI/waveperiod_*std::sin(2.*M_PI/wavelength_*mxyz[0]-2.*M_PI/waveperiod_*time)*std::exp(-0.1*mxyz[2]/amplitude_);  
-  double HorizontalWaveVelocity = amplitude_*2.*M_PI/waveperiod_*std::cos(2.*M_PI/wavelength_*mxyz[0]-2.*M_PI/waveperiod_*time);
  
   if(mxyz[2] < sealevelz_ + eps){
   vel[0] = HorizontalWaveVelocity;
