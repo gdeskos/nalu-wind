@@ -99,6 +99,8 @@ TurbulenceAveragingPostProcessing::load(
         averagingType_ = NALU_CLASSIC;
       else if (avgType == "moving_exponential")
         averagingType_ = MOVING_EXPONENTIAL;
+      else if (avgType == "phase_average")
+        averagingType_ = PHASE_AVERAGE;
       else
         throw std::runtime_error(
           "TurbulenceAveragingPostProcessing: "

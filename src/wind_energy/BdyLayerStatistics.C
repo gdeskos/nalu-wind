@@ -160,7 +160,9 @@ BdyLayerStatistics::setup_turbulence_averaging(
 
   if (calcTemperatureStats_) {
     avInfo->computeTemperatureResolved_ = true;
-    avInfo->computeTemperatureSFS_ = true;
+  	if(calcLESStats_){
+    	avInfo->computeTemperatureSFS_ = true;
+  	}
     avInfo->resolvedFieldNameVec_.push_back("temperature");
   }
 
