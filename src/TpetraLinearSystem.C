@@ -1,9 +1,12 @@
-/*------------------------------------------------------------------------*/
-/*  Copyright 2014 Sandia Corporation.                                    */
-/*  This software is released under the license detailed                  */
-/*  in the file, LICENSE, which is located in the top-level Nalu          */
-/*  directory structure                                                   */
-/*------------------------------------------------------------------------*/
+// Copyright 2017 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS), National Renewable Energy Laboratory, University of Texas Austin,
+// Northwest Research Associates. Under the terms of Contract DE-NA0003525
+// with NTESS, the U.S. Government retains certain rights in this software.
+//
+// This software is released under the BSD 3-clause license. See LICENSE file
+// for more details.
+//
+
 
 
 #include <TpetraLinearSystem.h>
@@ -1307,10 +1310,15 @@ void reset_rows(
 
 sierra::nalu::CoeffApplier* TpetraLinearSystem::get_coeff_applier()
 {
-  return new TpetraLinSysCoeffApplier(ownedLocalMatrix_, sharedNotOwnedLocalMatrix_,
-                                      ownedLocalRhs_, sharedNotOwnedLocalRhs_,
-                                      entityToLID_, entityToColLID_,
-                                      maxOwnedRowId_, maxSharedNotOwnedRowId_, numDof_);
+  if (!hostCoeffApplier) {
+    hostCoeffApplier.reset(new TpetraLinSysCoeffApplier(
+      ownedLocalMatrix_, sharedNotOwnedLocalMatrix_, ownedLocalRhs_,
+      sharedNotOwnedLocalRhs_, entityToLID_, entityToColLID_, maxOwnedRowId_,
+      maxSharedNotOwnedRowId_, numDof_));
+    deviceCoeffApplier = hostCoeffApplier->device_pointer();
+  }
+
+  return deviceCoeffApplier;
 }
 
 KOKKOS_FUNCTION
@@ -1328,13 +1336,15 @@ void TpetraLinearSystem::TpetraLinSysCoeffApplier::resetRows(unsigned numNodes,
 }
 
 KOKKOS_FUNCTION
-void TpetraLinearSystem::TpetraLinSysCoeffApplier::operator()(unsigned numEntities,
-                                                              const ngp::Mesh::ConnectedNodes& entities,
-                                                              const SharedMemView<int*,DeviceShmem> & localIds,
-                                                              const SharedMemView<int*,DeviceShmem> & sortPermutation,
-                                                              const SharedMemView<const double*,DeviceShmem> & rhs,
-                                                              const SharedMemView<const double**,DeviceShmem> & lhs,
-                                                              const char * /*trace_tag*/)
+void
+TpetraLinearSystem::TpetraLinSysCoeffApplier::operator()(
+  unsigned numEntities,
+  const ngp::Mesh::ConnectedNodes& entities,
+  const SharedMemView<int*, DeviceShmem>& localIds,
+  const SharedMemView<int*, DeviceShmem>& sortPermutation,
+  const SharedMemView<const double*, DeviceShmem>& rhs,
+  const SharedMemView<const double**, DeviceShmem>& lhs,
+  const char* /*trace_tag*/)
 {
   sum_into(
       ownedLocalMatrix_, sharedNotOwnedLocalMatrix_,
@@ -1349,19 +1359,25 @@ void TpetraLinearSystem::TpetraLinSysCoeffApplier::operator()(unsigned numEntiti
 
 void TpetraLinearSystem::TpetraLinSysCoeffApplier::free_device_pointer()
 {
+#ifdef KOKKOS_ENABLE_CUDA
   if (this != devicePointer_) {
     sierra::nalu::kokkos_free_on_device(devicePointer_);
     devicePointer_ = nullptr;
   }
+#endif
 }
 
 sierra::nalu::CoeffApplier* TpetraLinearSystem::TpetraLinSysCoeffApplier::device_pointer()
 {
+#ifdef KOKKOS_ENABLE_CUDA
   if (devicePointer_ != nullptr) {
     sierra::nalu::kokkos_free_on_device(devicePointer_);
     devicePointer_ = nullptr;
   }
   devicePointer_ = sierra::nalu::create_device_expression(*this);
+#else
+  devicePointer_ = this;
+#endif
   return devicePointer_;
 }
 
@@ -1975,7 +1991,9 @@ void TpetraLinearSystem::copy_tpetra_to_stk(
 
   ngp::Mesh ngpMesh = realm_.ngp_mesh();
 
-  nalu_ngp::run_entity_algorithm(ngpMesh, stk::topology::NODE_RANK, selector,
+  nalu_ngp::run_entity_algorithm(
+    "TpetraLinSys::copy_tpetra_to_stk",
+    ngpMesh, stk::topology::NODE_RANK, selector,
   KOKKOS_LAMBDA(const MeshIndex& meshIdx)
   {
       stk::mesh::Entity node = (*meshIdx.bucket)[meshIdx.bucketOrd];
@@ -2092,10 +2110,12 @@ int getDofStatus_impl(stk::mesh::Entity node, const Realm& realm)
   }
 
   // still got here? problem...
-  if (1)
-    throw std::logic_error("bad status2");
+  throw std::logic_error("bad status2");
 
+// Avoid nvcc unreachable statement warnings
+#ifndef __CUDACC__
   return DS_SkippedDOF;
+#endif
 }
 
 } // namespace nalu

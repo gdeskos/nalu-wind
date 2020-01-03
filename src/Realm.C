@@ -1,9 +1,12 @@
-/*------------------------------------------------------------------------*/
-/*  Copyright 2014 Sandia Corporation.                                    */
-/*  This software is released under the license detailed                  */
-/*  in the file, LICENSE, which is located in the top-level Nalu          */
-/*  directory structure                                                   */
-/*------------------------------------------------------------------------*/
+// Copyright 2017 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS), National Renewable Energy Laboratory, University of Texas Austin,
+// Northwest Research Associates. Under the terms of Contract DE-NA0003525
+// with NTESS, the U.S. Government retains certain rights in this software.
+//
+// This software is released under the BSD 3-clause license. See LICENSE file
+// for more details.
+//
+
 
 
 #include <Realm.h>
@@ -48,9 +51,9 @@
 
 #include <element_promotion/PromoteElement.h>
 #include <element_promotion/PromotedElementIO.h>
-#include <element_promotion/ElementDescription.h>
 #include <element_promotion/PromotedPartHelper.h>
-#include <master_element/MasterElementHO.h>
+#include <element_promotion/HexNElementDescription.h>
+#include <master_element/QuadratureRule.h>
 
 // mesh motion
 #include <mesh_motion/MeshMotionAlg.h>
@@ -617,22 +620,33 @@ Realm::look_ahead_and_creation(const YAML::Node & node)
       case ActuatorType::ActLineFAST : {
 #ifdef NALU_USES_OPENFAST
 	actuator_ =  new ActuatorLineFAST(*this, *foundActuator[0]);
+	break;
 #else
 	throw std::runtime_error("look_ahead_and_create::error: Requested actuator type: " + ActuatorTypeName + ", but was not enabled at compile time");
-#endif
+// Avoid nvcc unreachable statement warnings
+#ifndef __CUDACC__
 	break;
+#endif
+#endif
       }
       case ActuatorType::ActDiskFAST : {
 #ifdef NALU_USES_OPENFAST
 	actuator_ =  new ActuatorDiskFAST(*this, *foundActuator[0]);
+	break;
 #else
 	throw std::runtime_error("look_ahead_and_create::error: Requested actuator type: " + ActuatorTypeName + ", but was not enabled at compile time");
-#endif
+// Avoid nvcc unreachable statement warnings
+#ifndef __CUDACC__
 	break;
+#endif
+#endif
       }
       default : {
         throw std::runtime_error("look_ahead_and_create::error: unrecognized actuator type: " + ActuatorTypeName);
+// Avoid nvcc unreachable statement warnings
+#ifndef __CUDACC__
         break;
+#endif
       }
       }
     }
@@ -693,13 +707,8 @@ Realm::load(const YAML::Node & node)
 
   get_if_present(node, "polynomial_order", promotionOrder_, promotionOrder_);
   if (promotionOrder_ >=1) {
+    throw std::runtime_error("Mesh promotion not available");
     doPromotion_ = true;
-
-    // with polynomial order set to 1, the HO method defaults down to the consistent mass matrix P1 discretization
-    // super-element/faces are activated despite being unnecessary
-    if (promotionOrder_ == 1) {
-      NaluEnv::self().naluOutputP0() << "Activating the consistent-mass matrix P1 discretization..." << std::endl;
-    }
   }
 
   // let everyone know about core algorithm
@@ -2662,7 +2671,7 @@ Realm::compute_geometry()
 //-------- compute_vrtm ----------------------------------------------------
 //--------------------------------------------------------------------------
 void
-Realm::compute_vrtm()
+Realm::compute_vrtm(const std::string& velName)
 {
   if (!solutionOptions_->meshMotion_ &&
       !solutionOptions_->externalMeshDeformation_) return;
@@ -2674,15 +2683,16 @@ Realm::compute_vrtm()
   const auto& ngpMesh = ngp_mesh();
   const auto& fieldMgr = ngp_field_manager();
   const auto vel = fieldMgr.get_field<double>(
-    get_field_ordinal(*metaData_, "velocity"));
+    get_field_ordinal(*metaData_, velName));
   const auto meshVel = fieldMgr.get_field<double>(
     get_field_ordinal(*metaData_, "mesh_velocity"));
   auto vrtm = fieldMgr.get_field<double>(
-    get_field_ordinal(*metaData_, "velocity_rtm"));
+    get_field_ordinal(*metaData_, velName + "_rtm"));
 
   const stk::mesh::Selector sel = (
     metaData_->locally_owned_part() | metaData_->globally_shared_part());
   nalu_ngp::run_entity_algorithm(
+    "compute_vrtm",
     ngpMesh, stk::topology::NODE_RANK, sel,
     KOKKOS_LAMBDA(const MeshIndex& mi) {
       for (int d=0; d < nDim; ++d)
@@ -3088,12 +3098,18 @@ Realm::setup_overset_bc(
       // should not get here... we should have thrown error in input file processing stage
       throw std::runtime_error("TIOGA TPL support not enabled during compilation phase");
 #endif
+// Avoid nvcc unreachable statement warnings
+#ifndef __CUDACC__
       break;
+#endif
 
     case OversetBoundaryConditionData::OVERSET_NONE:
     default:
       throw std::runtime_error("Invalid setting for overset connectivity");
+// Avoid nvcc unreachable statement warnings
+#ifndef __CUDACC__
       break;
+#endif
     }
   }   
 }
@@ -4379,7 +4395,7 @@ Realm::setup_element_promotion()
   // Create a description of the element and deal with the part naming styles
 
   // Struct containing information about the element (e.g. number of nodes, nodes per face, etc.)
-  desc_ = ElementDescription::create(meta_data().spatial_dimension(), promotionOrder_);
+  HexNElementDescription desc(promotionOrder_);
 
   // Every mesh part is promoted for now
   basePartVector_ = metaData_->get_mesh_parts();
@@ -4404,7 +4420,7 @@ Realm::setup_element_promotion()
 
         superPart = &metaData_->declare_part_with_topology(
           superName,
-          stk::create_superelement_topology(static_cast<unsigned>(desc_->nodesPerElement))
+          stk::create_superelement_topology(static_cast<unsigned>(desc.nodesPerElement))
         );
         stk::io::put_io_part_attribute(*superPart);
       }
@@ -4417,10 +4433,6 @@ Realm::setup_element_promotion()
       }
       superPartVector_.push_back(superPart);
       superTargetNames_.push_back(superName);
-
-      // Create elements for future use
-      sierra::nalu::MasterElementRepo::get_surface_master_element(superPart->topology(), meta_data().spatial_dimension(), "GaussLegendre");
-      sierra::nalu::MasterElementRepo::get_volume_master_element(superPart->topology(), meta_data().spatial_dimension(), "GaussLegendre");
     }
   }
 
@@ -4431,7 +4443,7 @@ Realm::setup_element_promotion()
       auto* superSuperset = &metaData_->declare_part(super_element_part_name(targetPart->name()), sideRank);
       for (const auto* subset : targetPart->subsets()) {
         if (subset->topology().rank() == sideRank) {
-          unsigned nodesPerSide = desc_->nodesPerSide;
+          unsigned nodesPerSide = desc.nodesPerSide;
           auto sideTopo = (metaData_->spatial_dimension() == 2) ?
               stk::create_superedge_topology(nodesPerSide)
             : stk::create_superface_topology(nodesPerSide);
@@ -4441,19 +4453,11 @@ Realm::setup_element_promotion()
           stk::mesh::Part* superFacePart = &metaData_->declare_part_with_topology(partName,sideTopo);
           superPartVector_.push_back(superFacePart);
           metaData_->declare_part_subset(*superSuperset, *superFacePart);
-
-          // Create elements for future use
-          sierra::nalu::MasterElementRepo::get_surface_master_element(sideTopo, meta_data().spatial_dimension(), "GaussLegendre");
-          sierra::nalu::MasterElementRepo::get_volume_master_element(sideTopo, meta_data().spatial_dimension(), "GaussLegendre");
         }
       }
     }
   }
-
   metaData_->declare_part("edge_part", stk::topology::EDGE_RANK);
-  if (metaData_->spatial_dimension() == 3) {
-    metaData_->declare_part("face_part", stk::topology::FACE_RANK);
-  }
 }
 
 //--------------------------------------------------------------------------
@@ -4465,16 +4469,13 @@ Realm::promote_mesh()
   NaluEnv::self().naluOutputP0() << "Realm::promote_elements() Begin " << std::endl;
   auto timeA = stk::wall_time();
 
-  auto* coords = metaData_->get_field<VectorFieldType>(stk::topology::NODE_RANK, "coordinates");
-
-  auto* edgePart = metaData_->get_part("edge_part");
-  auto* facePart = metaData_->get_part("face_part");
-
+  auto& coords = *metaData_->get_field<VectorFieldType>(stk::topology::NODE_RANK, "coordinates");
   if (!restarted_simulation()) {
-    promotion::promote_elements(*bulkData_, *desc_, *coords, basePartVector_, edgePart, facePart);
+    const auto gllNodes = gauss_lobatto_legendre_rule(promotionOrder_+ 1).first;
+    promotion::create_tensor_product_hex_elements(gllNodes, *bulkData_, coords, basePartVector_);
   }
   else {
-    promotion::create_boundary_elements(*bulkData_, *desc_, basePartVector_);
+    promotion::create_promoted_boundary_elements(promotionOrder_, *bulkData_,  basePartVector_);
   }
 
   auto timeB = stk::wall_time();
@@ -4497,7 +4498,7 @@ Realm::create_promoted_output_mesh()
 
     auto* coords = metaData_->get_field<VectorFieldType>(stk::topology::NODE_RANK, "coordinates");
     promotionIO_ = make_unique<PromotedElementIO>(
-      *desc_,
+      promotionOrder_,
       *metaData_,
       *bulkData_,
       metaData_->get_mesh_parts(),
@@ -4826,11 +4827,6 @@ bool
   return solutionOptions_->activateAdaptivity_;
 }
 
-bool
-Realm::using_tensor_product_kernels() const
-{
-  return solutionOptions_->newHO_;
-}
 
 } // namespace nalu
 } // namespace Sierra

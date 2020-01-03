@@ -1,9 +1,12 @@
-/*------------------------------------------------------------------------*/
-/*  Copyright 2014 Sandia Corporation.                                    */
-/*  This software is released under the license detailed                  */
-/*  in the file, LICENSE, which is located in the top-level Nalu          */
-/*  directory structure                                                   */
-/*------------------------------------------------------------------------*/
+// Copyright 2017 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS), National Renewable Energy Laboratory, University of Texas Austin,
+// Northwest Research Associates. Under the terms of Contract DE-NA0003525
+// with NTESS, the U.S. Government retains certain rights in this software.
+//
+// This software is released under the BSD 3-clause license. See LICENSE file
+// for more details.
+//
+
 
 
 #include <EnthalpyEquationSystem.h>
@@ -16,7 +19,6 @@
 #include <AssembleScalarElemOpenSolverAlgorithm.h>
 #include <AssembleScalarNonConformalSolverAlgorithm.h>
 #include <AssembleNodalGradElemAlgorithm.h>
-#include <AssembleNodalGradBoundaryAlgorithm.h>
 #include <AssembleNodalGradNonConformalAlgorithm.h>
 #include <AssembleNodeSolverAlgorithm.h>
 #include <AssembleWallHeatTransferAlgorithmDriver.h>
@@ -60,8 +62,6 @@
 #include <kernel/ScalarAdvDiffElemKernel.h>
 #include <kernel/ScalarUpwAdvDiffElemKernel.h>
 
-#include <kernel/ScalarMassHOElemKernel.h>
-#include <kernel/ScalarAdvDiffHOElemKernel.h>
 #include <kernel/ScalarFluxBCElemKernel.h>
 #include <kernel/EnthalpyTGradBCElemKernel.h>
 
@@ -102,7 +102,6 @@
 #include <user_functions/FlowPastCylinderTempAuxFunction.h>
 #include <user_functions/VariableDensityNonIsoTemperatureAuxFunction.h>
 #include <user_functions/VariableDensityNonIsoEnthalpySrcNodeSuppAlg.h>
-#include <user_functions/VariableDensityEnthalpyMMSHOElemKernel.h>
 
 
 #include <user_functions/BoussinesqNonIsoTemperatureAuxFunction.h>
@@ -390,7 +389,7 @@ EnthalpyEquationSystem::register_interior_algorithm(
       SolverAlgorithm *theAlg = NULL;
       if ( realm_.realmUsesEdges_ ) {
         if ( !realm_.solutionOptions_->eigenvaluePerturb_ )
-          theAlg = new ScalarEdgeSolverAlg(realm_, part, this, enthalpy_, dhdx_, evisc_);
+          theAlg = new ScalarEdgeSolverAlg(realm_, part, this, enthalpy_, dhdx_, evisc_, false);
         else
           theAlg = new AssembleScalarEigenEdgeSolverAlgorithm(realm_, part, this, enthalpy_, dhdx_, thermalCond_, specHeat_,
             tvisc_, realm_.get_turb_prandtl(enthalpy_->name()));
@@ -455,9 +454,8 @@ EnthalpyEquationSystem::register_interior_algorithm(
     if ( realm_.realmUsesEdges_ )
       throw std::runtime_error("Enthalpy::Error can not use element source terms for an edge-based scheme");
 
-    KernelBuilder kb(*this, *part, solverAlgDriver_->solverAlgorithmMap_, realm_.using_tensor_product_kernels());
+    KernelBuilder kb(*this, *part, solverAlgDriver_->solverAlgorithmMap_);
     auto& dataPreReqs = kb.data_prereqs();
-    auto& dataPreReqsHO = kb.data_prereqs_HO();
 
     kb.build_topo_kernel_if_requested<ScalarMassElemKernel>
       ("enthalpy_time_derivative",
@@ -500,18 +498,6 @@ EnthalpyEquationSystem::register_interior_algorithm(
     ("NSO_4TH_KE",
       realm_.bulk_data(), *realm_.solutionOptions_, enthalpy_, dhdx_,
       realm_.get_turb_schmidt(enthalpy_->name()), 1.0, dataPreReqs);
-
-    kb.build_sgl_kernel_if_requested<ScalarMassHOElemKernel>
-    ("experimental_ho_enthalpy_time_derivative",
-      realm_.bulk_data(), *realm_.solutionOptions_, enthalpy_, dataPreReqsHO);
-
-    kb.build_sgl_kernel_if_requested<ScalarAdvDiffHOElemKernel>
-    ("experimental_ho_advection_diffusion",
-      realm_.bulk_data(), *realm_.solutionOptions_, enthalpy_, evisc_, dataPreReqsHO);
-
-    kb.build_sgl_kernel_if_requested<VariableDensityEnthalpyMMSHOElemKernel>
-    ("experimental_ho_vdmms",
-      realm_.bulk_data(), *realm_.solutionOptions_, dataPreReqsHO);
 
     kb.report();
   }
@@ -667,9 +653,8 @@ EnthalpyEquationSystem::register_inflow_bc(
 
   // non-solver; dhdx; allow for element-based shifted
   if ( !managePNG_ ) {
-    nodalGradAlgDriver_.register_face_algorithm<
-      ScalarNodalGradBndryElemAlg, AssembleNodalGradBoundaryAlgorithm>(
-        algType, part, "tke_nodal_grad", &enthalpyNp1, &dhdxNone, edgeNodalGradient_);
+    nodalGradAlgDriver_.register_face_algorithm<ScalarNodalGradBndryElemAlg>(
+        algType, part, "enthalpy_nodal_grad", &enthalpyNp1, &dhdxNone, edgeNodalGradient_);
   }
 
   // Dirichlet bc
@@ -722,9 +707,8 @@ EnthalpyEquationSystem::register_open_bc(
 
   // non-solver; dhdx; allow for element-based shifted
   if ( !managePNG_ ) {
-    nodalGradAlgDriver_.register_face_algorithm<
-      ScalarNodalGradBndryElemAlg, AssembleNodalGradBoundaryAlgorithm>(
-        algType, part, "tke_nodal_grad", &enthalpyNp1, &dhdxNone, edgeNodalGradient_);
+    nodalGradAlgDriver_.register_face_algorithm<ScalarNodalGradBndryElemAlg>(
+        algType, part, "enthalpy_nodal_grad", &enthalpyNp1, &dhdxNone, edgeNodalGradient_);
   }
 
   // solver open; lhs
@@ -904,9 +888,8 @@ EnthalpyEquationSystem::register_wall_bc(
 
   // non-solver; dhdx; allow for element-based shifted
   if ( !managePNG_ ) {
-    nodalGradAlgDriver_.register_face_algorithm<
-      ScalarNodalGradBndryElemAlg, AssembleNodalGradBoundaryAlgorithm>(
-        algType, part, "tke_nodal_grad", &enthalpyNp1, &dhdxNone, edgeNodalGradient_);
+    nodalGradAlgDriver_.register_face_algorithm<ScalarNodalGradBndryElemAlg>(
+        algType, part, "enthalpy_nodal_grad", &enthalpyNp1, &dhdxNone, edgeNodalGradient_);
   }
 }
 
@@ -933,9 +916,8 @@ EnthalpyEquationSystem::register_symmetry_bc(
   
   // non-solver; dhdx; allow for element-based shifted
   if ( !managePNG_ ) {
-    nodalGradAlgDriver_.register_face_algorithm<
-      ScalarNodalGradBndryElemAlg, AssembleNodalGradBoundaryAlgorithm>(
-        algType, part, "tke_nodal_grad", &enthalpyNp1, &dhdxNone, edgeNodalGradient_);
+    nodalGradAlgDriver_.register_face_algorithm<ScalarNodalGradBndryElemAlg>(
+        algType, part, "enthalpy_nodal_grad", &enthalpyNp1, &dhdxNone, edgeNodalGradient_);
   }
 }
 
@@ -1006,9 +988,8 @@ EnthalpyEquationSystem::register_abltop_bc(
 
   // non-solver; dhdx; allow for element-based shifted
   if ( !managePNG_ ) {
-    nodalGradAlgDriver_.register_face_algorithm<
-      ScalarNodalGradBndryElemAlg, AssembleNodalGradBoundaryAlgorithm>(
-        algType, part, "tke_nodal_grad", &enthalpyNp1, &dhdxNone, edgeNodalGradient_);
+    nodalGradAlgDriver_.register_face_algorithm<ScalarNodalGradBndryElemAlg>(
+        algType, part, "enthalpy_nodal_grad", &enthalpyNp1, &dhdxNone, edgeNodalGradient_);
   }
 }
 
@@ -1030,15 +1011,14 @@ EnthalpyEquationSystem::register_non_conformal_bc(
   // non-solver; contribution to dhdx; DG algorithm decides on locations for integration points
   if ( !managePNG_ ) {
     if ( edgeNodalGradient_ ) {
-      nodalGradAlgDriver_.register_face_algorithm<
-        ScalarNodalGradBndryElemAlg, AssembleNodalGradBoundaryAlgorithm>(
-          algType, part, "tke_nodal_grad", &hNp1, &dhdxNone, edgeNodalGradient_);
+      nodalGradAlgDriver_.register_face_algorithm<ScalarNodalGradBndryElemAlg>(
+          algType, part, "enthalpy_nodal_grad", &hNp1, &dhdxNone, edgeNodalGradient_);
     }
     else {
       // proceed with DG
       nodalGradAlgDriver_
         .register_legacy_algorithm<AssembleNodalGradNonConformalAlgorithm>(
-          algType, part, "tke_nodal_grad", &hNp1, &dhdxNone);
+          algType, part, "enthalpy_nodal_grad", &hNp1, &dhdxNone);
     }
   }
 
