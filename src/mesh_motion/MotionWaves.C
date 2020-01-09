@@ -35,6 +35,11 @@ void MotionWaves::load(const YAML::Node& node)
   get_if_present(node, "waveperiod", waveperiod_, waveperiod_);	
 	get_if_present(node, "wavelength",wavelength_,wavelength_); 
 	}
+  else if (waveModel_=="StokesSecondOrder_prescribed"){
+  get_if_present(node, "amplitude", amplitude_, amplitude_);
+  get_if_present(node, "waveperiod", waveperiod_, waveperiod_);	
+	get_if_present(node, "wavelength",wavelength_,wavelength_);  
+  }
   else if (waveModel_=="StokesThirdOrder_prescribed"){
   
   }
@@ -74,6 +79,8 @@ void MotionWaves::build_transformation(
 	
 	if(waveModel_== "Linear_prescribed"){
 	curr_disp[2]=sealevelz_+amplitude_*std::cos(phase)*std::exp(-0.1*xyz[2]/amplitude_);
+	else if (waveModel_ == "StokesSecondOrder_prescribed"){
+  curr_disp[2]=sealevelz_+amplitude_*(std::cos(phase)+k*amplitude_*(3-omega*omega)/(4.*omega*omega*omega)*std::cos(2*phase);
   }
 	else if (waveModel_ == "StokesThirdOrder_prescribed"){
 	curr_disp[2]=sealevelz_*((1.0-1.0/16.0*(k*amplitude_)*(k*amplitude_))*std::cos(phase)+1.0/2.0*(k*amplitude_)*std::cos(2.*phase)+3./8.*(k*amplitude_)*(k*amplitude_)*std::cos(3*phase));
@@ -119,6 +126,10 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
   VerticalWaveVelocity = amplitude_*omega*std::sin(phase)*std::exp(-0.1*mxyz[2]/amplitude_);  
   HorizontalWaveVelocity = amplitude_*omega*std::cos(phase);
   }
+  else if (waveModel_ == "StokesSecondOrder_prescribed"){
+  VerticalWaveVelocity=0.;
+  HorizontalWaveVelocity=0.;	
+	}
 	else if (waveModel_ == "StokesThirdOrder_prescribed"){
   VerticalWaveVelocity=0.;
   HorizontalWaveVelocity=0.;	

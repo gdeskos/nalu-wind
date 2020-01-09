@@ -55,7 +55,6 @@ public:
   enum AveragingType {
     NALU_CLASSIC = 0,           //!< Classic Nalu implementation (saw-tooth reset)
     MOVING_EXPONENTIAL,         //!< Moving exponential window averaging
-  	PHASE_AVERAGE,							//!< Phase/periodic window averaging
   };
   
   TurbulenceAveragingPostProcessing(
