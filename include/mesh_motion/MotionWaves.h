@@ -52,7 +52,7 @@ private:
 
   void translation_mat(const ThreeDVecType&);
 
-  std::string waveModel_{"Linear_prescribed"};   
+  std::string waveModel_{"Sinusoidal_full_domain"};   
   double amplitude_{0.1};
   double waveperiod_{1.0};
 	double wavelength_{1.0};
