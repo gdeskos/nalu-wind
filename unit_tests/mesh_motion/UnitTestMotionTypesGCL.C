@@ -27,7 +27,6 @@ namespace {
     "mesh_motion:																	 		 \n"
     "  																						 		 \n"
     "  - name: waterwaves 										     		 \n"
-    "    mesh_parts: [ block_1 ]											 \n"
     "    frame: non_inertial									     		 \n"
     "    motion:																	 		 \n"
  		"      - type: water_waves										 		 \n"
@@ -44,7 +43,7 @@ namespace {
   const double testTol = 1e-12;
 }
 
-TEST(utils, test_mesh_motion_gcl)
+TEST(meshMotion, test_mesh_motion_gcl)
 {
   
   // create realm
@@ -114,11 +113,11 @@ TEST(utils, test_mesh_motion_gcl)
   partVec.push_back( &(realm.meta_data().universal_part()) );
 
   stk::mesh::PartVector bndyPartVec;
-  bndyPartVec.push_back( realm.meta_data().get_part("surface_1") );
+  bndyPartVec.push_back(realm.meta_data().get_part("surface_1"));
 
-  sierra::nalu::compute_vector_divergence( realm.bulk_data(),
-                                           partVec, bndyPartVec,
-                                           meshVelocity, div_mesh_velocity );
+  sierra::nalu::compute_vector_divergence(realm.bulk_data(),
+                                          partVec, bndyPartVec,
+                                          meshVelocity, div_mesh_velocity);
   // check values
   for (auto b: bkts) {
     for (size_t in=0; in < b->size(); in++) {
@@ -128,8 +127,6 @@ TEST(utils, test_mesh_motion_gcl)
       EXPECT_NEAR(0., 0., testTol);
 
     } // end for loop - in index
-  } // end for loop - bkts
-   
-  
+  } // end for loop - bkts  
 }
 

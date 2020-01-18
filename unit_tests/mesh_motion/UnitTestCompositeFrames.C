@@ -54,7 +54,7 @@ namespace {
   const YAML::Node transNode    = rot_trans[1];
 
   const double testTol = 1e-12;
-
+	
   sierra::nalu::MotionBase::TransMatType eval_transformation(
     sierra::nalu::Realm& realm,
     double time,
