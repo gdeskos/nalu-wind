@@ -21,6 +21,7 @@
 #include "utils/StkHelpers.h"
 #include "utils/ComputeVectorDivergence.h"
 
+#include "mesh_motion/MotionTranslation.h"
 #include "mesh_motion/MotionRotation.h"
 #include "mesh_motion/MotionScaling.h"
 
@@ -29,6 +30,10 @@
 
 namespace {
     
+    double VNm1_analytical=1.;
+		double VN_analytical=1.0327665042944956;
+    double VNp1_analytical=1.0655330085889911;
+    double dVdt=0.3276650429449557; //based on BDF1
     std::vector<double> transform(
         const sierra::nalu::MotionBase::TransMatType& transMat,
         const double* xyz )
@@ -49,10 +54,11 @@ namespace {
 
 }
 
-TEST_F(MeshVelocityKernelHex8Mesh, NGP_mesh_vel_div)
+TEST_F(MeshVelocityKernelHex8Mesh, NGP_mesh_vel_div_rotation)
 {
   // Only execute for 1 processor runs
   if (bulk_.parallel_size() > 1) return;
+		const double tol = 1.0e-14;
 
   MeshVelocityKernelHex8Mesh::fill_mesh_and_init_fields("generated:2x2x2",true,false);
 
@@ -125,7 +131,6 @@ TEST_F(MeshVelocityKernelHex8Mesh, NGP_mesh_vel_div)
   stk::mesh::PartVector bndyPartVec;
   sierra::nalu::compute_scalar_divergence(bulk_, partVec_, bndyPartVec, faceVelMag_, divMeshVelField_);
 
-  const double tol = 1.0e-14;
   double full_dnv_mdv = 1e15;
   bool foundNode = false;
   {
