@@ -29,15 +29,11 @@
 #include "UnitTestUtils.h"
 
 namespace {
-<<<<<<< HEAD
     
     double VNm1_analytical=1.;
 		double VN_analytical=1.0327665042944956;
     double VNp1_analytical=1.0655330085889911;
     double dVdt=0.3276650429449557; //based on BDF1
-=======
-
->>>>>>> Adding a unit test for old div mesh vel
     std::vector<double> transform(
         const sierra::nalu::MotionBase::TransMatType& transMat,
         const double* xyz )
