@@ -311,7 +311,7 @@ TEST_F(MeshVelocityKernelHex8Mesh, NGP_mesh_nodevel_div)
 
 }
 
-
+/*
 TEST_F(MeshVelocityKernelHex8Mesh, NGP_mesh_vel_div_edge)
 {
   // Only execute for 1 processor runs
@@ -541,3 +541,4 @@ TEST_F(MeshVelocityKernelHex8Mesh, NGP_mesh_vel_div_scaling)
   EXPECT_NEAR(dvdt, full_dnv_mdv, tol);
 
 }
+*/
