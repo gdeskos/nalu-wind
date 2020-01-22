@@ -1,21 +1,23 @@
-#ifndef MOTIONROTATION_H
-#define MOTIONROTATION_H
+#ifndef MOTIONDEFORMINGINTERIOR_H
+#define MOTIONDEFORMINGINTERIOR_H
 
 #include "MotionBase.h"
 
 namespace sierra{
 namespace nalu{
 
-class MotionRotation : public MotionBase
+class MotionDeformingInterior : public MotionBase
 {
 public:
-  MotionRotation(const YAML::Node&);
+  MotionDeformingInterior(
+    stk::mesh::MetaData&,
+    const YAML::Node&);
 
-  virtual ~MotionRotation()
+  virtual ~MotionDeformingInterior()
   {
   }
 
-  virtual void build_transformation(const double, const double* = nullptr);
+  virtual void build_transformation(const double, const double*);
 
   /** Function to compute motion-specific velocity
    *
@@ -41,25 +43,23 @@ public:
     stk::mesh::PartVector&,
     stk::mesh::PartVector&,
     bool& computedMeshVelDiv );
-    
+
 private:
-  MotionRotation() = delete;
-  MotionRotation(const MotionRotation&) = delete;
+  MotionDeformingInterior() = delete;
+  MotionDeformingInterior(const MotionDeformingInterior&) = delete;
 
   void load(const YAML::Node&);
 
-  void rotation_mat(const double);
+  void scaling_mat(const double, const double*);
 
-  ThreeDVecType axis_ = {{0.0,0.0,1.0}};
+  ThreeDVecType xyzMin_;
+  ThreeDVecType xyzMax_;
 
-  double omega_{0.0};
-  double angle_{0.0};
-
-  bool useOmega_ = true;
+  ThreeDVecType amplitude_ = {{0.0,0.0,0.0}};
+  ThreeDVecType frequency_ = {{0.0,0.0,0.0}};
 };
 
-
 } // nalu
-} //sierra
+} // sierra
 
-#endif /* MOTIONROTATION_H */
+#endif /* MOTIONDEFORMINGINTERIOR_H */
