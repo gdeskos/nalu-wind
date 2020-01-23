@@ -316,22 +316,21 @@ TEST_F(GCLTest, NGP_mesh_velocity_linear_waves)
 {
   // Only execute for 1 processor runs
   if (bulk_.parallel_size() > 1) return;
-		const double tol = 1.0e-14;
 
-  const std::string meshDims = "72x48x1";
+  const std::string meshDims = "30x30x10";
   const bool secondOrder = false;
   const double deltaT = 0.25; 
   const std::string mesh_motion =
 	 	"mesh_motion:																													\n" 	
 	 	"  - name: waterwaves                                                 \n"
 	 	"    frame: non_inertial                                              \n"
-	 	"    mesh_parts: [ block_1 ]                                         \n"
+	 	"    mesh_parts: [ block_1 ]                                          \n"
 	 	"    motion:                                                          \n"
 	 	"      - type: water_waves                                            \n"
 	 	"        wave_motion_model: Linear_prescribed                         \n"
-	 	"        amplitude: 0.1                                            \n"
+	 	"        amplitude:  1.                                               \n"
 	 	"        waveperiod: 2.                                               \n"
-	 	"        wavelength: 12.0																							\n"; 
+	 	"        wavelength: 10.0																							\n"; 
 
  
   fill_mesh_and_init_fields(meshDims, false,true);
