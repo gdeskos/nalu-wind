@@ -162,7 +162,7 @@ realms:
       motion:
         - type: water_waves
           wave_motion_model: Linear_prescribed
-          amplitude:  5. 
+          amplitude:  6. 
           waveperiod: 16.67 
           wavelength: 300.
 
@@ -298,7 +298,7 @@ Time_Integrators:
 - StandardTimeIntegrator:
     name: ti_1
     start_time: 0.0
-    termination_step_count: 999 
+    termination_step_count: 10000 
     time_step: 0.5
     time_stepping_type: fixed
     time_step_count: 0

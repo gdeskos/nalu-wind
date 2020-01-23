@@ -13,7 +13,7 @@ option(ENABLE_WIND_UTILS "Build wind utils along with Nalu-Wind" OFF)
 option(ENABLE_FFTW "Use the FFTW library to support ABLTopBC" OFF)
 option(ENABLE_HYPRE "Use HYPRE Solver library" OFF)
 option(ENABLE_OPENFAST
-       "Use OPENFAST tpl to get actuator line positions and forces" OFF)
+       "Use OPENFAST tpl to get actuator line positions and forces" ON)
 option(ENABLE_PARAVIEW_CATALYST
       "Enable ParaView Catalyst. Requires external installation of Trilinos Catalyst IOSS adapter."
        OFF)
