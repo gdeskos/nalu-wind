@@ -48,6 +48,7 @@ public:
 private:
   unsigned velocityNp1_    {stk::mesh::InvalidOrdinal};
   unsigned bcVelocity_     {stk::mesh::InvalidOrdinal};
+  unsigned bcMeshVelocity_ {stk::mesh::InvalidOrdinal}; // Adding a bc mesh velocity for the waves
   unsigned density_        {stk::mesh::InvalidOrdinal};
   unsigned bcHeatFlux_     {stk::mesh::InvalidOrdinal};
   unsigned specificHeat_   {stk::mesh::InvalidOrdinal};

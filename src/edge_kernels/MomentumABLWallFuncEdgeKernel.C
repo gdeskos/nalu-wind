@@ -34,6 +34,7 @@ MomentumABLWallFuncEdgeKernel<BcAlgTraits>::MomentumABLWallFuncEdgeKernel(
 ) : NGPKernel<MomentumABLWallFuncEdgeKernel<BcAlgTraits>>(),
     velocityNp1_(get_field_ordinal(meta, "velocity", stk::mesh::StateNP1)),
     bcVelocity_(get_field_ordinal(meta, "wall_velocity_bc")),
+    bcMeshVelocity_(get_field_ordinal(meta, "mesh_velocity")),
     density_(get_field_ordinal(meta, "density")),
     bcHeatFlux_(get_field_ordinal(meta, "heat_flux_bc")),
     specificHeat_(get_field_ordinal(meta, "specific_heat")),
@@ -50,6 +51,7 @@ MomentumABLWallFuncEdgeKernel<BcAlgTraits>::MomentumABLWallFuncEdgeKernel(
 
   faceDataPreReqs.add_gathered_nodal_field(velocityNp1_, BcAlgTraits::nDim_);
   faceDataPreReqs.add_gathered_nodal_field(bcVelocity_, BcAlgTraits::nDim_);
+  faceDataPreReqs.add_gathered_nodal_field(bcMeshVelocity_, BcAlgTraits::nDim_);
   faceDataPreReqs.add_gathered_nodal_field(density_, 1);
   faceDataPreReqs.add_gathered_nodal_field(bcHeatFlux_, 1);
   faceDataPreReqs.add_gathered_nodal_field(specificHeat_, 1);
@@ -75,6 +77,7 @@ MomentumABLWallFuncEdgeKernel<BcAlgTraits>::execute(
 
   const auto& v_vel = scratchViews.get_scratch_view_2D(velocityNp1_);
   const auto& v_bcvel = scratchViews.get_scratch_view_2D(bcVelocity_);
+  const auto& v_bcmeshvel = scratchViews.get_scratch_view_2D(bcMeshVelocity_);
   const auto& v_density = scratchViews.get_scratch_view_1D(density_);
   const auto& v_bcHeatFlux = scratchViews.get_scratch_view_1D(bcHeatFlux_);
   const auto& v_specificHeat = scratchViews.get_scratch_view_1D(specificHeat_);
@@ -125,24 +128,25 @@ MomentumABLWallFuncEdgeKernel<BcAlgTraits>::execute(
       const int rowR = nodeR * BcAlgTraits::nDim_ + i;
       DoubleType uiTan = 0.0;
       DoubleType uiBcTan = 0.0;
-
+			DoubleType uiBcMeshTan =0.0;
       for (int j=0; j < BcAlgTraits::nDim_; ++j) {
         DoubleType ninj = nx[i] * nx[j];
         if (i == j) {
           const DoubleType om_ninj = 1.0 - ninj;
           uiTan += om_ninj * v_vel(nodeR, j);
           uiBcTan += om_ninj * v_bcvel(nodeR, j);
-
+					uiBcMeshTan += om_ninj * v_bcmeshvel(nodeR,j);
           lhs(rowR, rowR) += lambda * om_ninj;
         } else {
           const int colR = nodeR * BcAlgTraits::nDim_ + j;
           uiTan -= ninj * v_vel(nodeR, j);
           uiBcTan -= ninj * v_bcvel(nodeR, j);
+					uiBcMeshTan -= ninj * v_bcmeshvel(nodeR,j);
 
           lhs(rowR, colR) -= lambda * ninj;
         }
       }
-      rhs(rowR) -= lambda * (uiTan - uiBcTan);
+      rhs(rowR) -= lambda * (uiTan - uiBcTan-uiBcMeshTan);
     }
   }
 }

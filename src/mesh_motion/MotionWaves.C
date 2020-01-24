@@ -34,7 +34,8 @@ void MotionWaves::load(const YAML::Node& node)
   get_if_present(node, "amplitude", amplitude_, amplitude_);
   get_if_present(node, "waveperiod", waveperiod_, waveperiod_);	
 	get_if_present(node, "wavelength",wavelength_,wavelength_); 
-	}
+	// Compute the wave number
+  }
   else if (waveModel_=="Linear_prescribed"){
   get_if_present(node, "amplitude", amplitude_, amplitude_);
   get_if_present(node, "waveperiod", waveperiod_, waveperiod_);	
@@ -44,6 +45,7 @@ void MotionWaves::load(const YAML::Node& node)
   get_if_present(node, "amplitude", amplitude_, amplitude_);
   get_if_present(node, "waveperiod", waveperiod_, waveperiod_);	
 	get_if_present(node, "wavelength",wavelength_,wavelength_);  
+  get_if_present(node, "waterdepth_", waterdepth_, waterdepth_);	
   }
   else if (waveModel_=="StokesThirdOrder_prescribed"){
   
@@ -62,7 +64,11 @@ void MotionWaves::load(const YAML::Node& node)
   get_if_present(node, "end_time", endTime_, endTime_);
   endTime_ = endTime_+eps;
 	get_if_present(node, "sea_level_z",sealevelz_,sealevelz_); 
-  // get sea-level based on if it was defined
+  // Compute wave-related parameters
+  wavenumber_=2.*M_PI/wavelength_;
+  wavefrequency_=2.*M_PI/waveperiod_;
+  //Define dispersion
+	dispersion_= std::sqrt(std::tanh(wavenumber_*waterdepth_));
 
 }
 void MotionWaves::build_transformation(
@@ -73,10 +79,7 @@ void MotionWaves::build_transformation(
 
   double motionTime = (time < endTime_)? time : endTime_;
 
-	double k=2.*M_PI/wavelength_;
-  double omega=2.*M_PI/waveperiod_;
-  double phase=k*xyz[0]-omega*motionTime;
-
+  double phase=wavenumber_*xyz[0]-wavefrequency_*motionTime;
 	ThreeDVecType curr_disp={};
 	curr_disp[0]=0.;
 	curr_disp[1]=0.;
@@ -89,10 +92,10 @@ void MotionWaves::build_transformation(
 	curr_disp[2]=sealevelz_+amplitude_*std::cos(phase)*std::exp(-0.1*xyz[2]/amplitude_);
 	}
   else if (waveModel_ == "StokesSecondOrder_prescribed"){
-  curr_disp[2]=sealevelz_+amplitude_*(std::cos(phase)+k*amplitude_*(3-omega*omega)/(4.*omega*omega*omega)*std::cos(2*phase));
+  curr_disp[2]=sealevelz_+amplitude_*(std::cos(phase)+wavenumber_*amplitude_*(3-dispersion_*dispersion_)/(4.*dispersion_*dispersion_*dispersion_)*std::cos(2.*phase))*std::exp(-0.1*xyz[2]/amplitude_);
   }
 	else if (waveModel_ == "StokesThirdOrder_prescribed"){
-	curr_disp[2]=sealevelz_*((1.0-1.0/16.0*(k*amplitude_)*(k*amplitude_))*std::cos(phase)+1.0/2.0*(k*amplitude_)*std::cos(2.*phase)+3./8.*(k*amplitude_)*(k*amplitude_)*std::cos(3*phase));
+	//curr_disp[2]=sealevelz_*((1.0-1.0/16.0*(wavenumber_*amplitude_)*(wavenumber_*amplitude_))*std::cos(phase)+1.0/2.0*(wavenumber_*amplitude_)*std::cos(2.*phase)+3./8.*(wavenumber_*amplitude_)*(wavenumber_*amplitude_)*std::cos(3*phase));
 	}
 	else if (waveModel_ =="HOS"){
 	
@@ -125,23 +128,23 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
   
   double motionTime = (time < endTime_)? time : endTime_;
 
-	double k=2.*M_PI/wavelength_;
-  double omega=2.*M_PI/waveperiod_;
-  double phase=k*mxyz[0]-omega*motionTime;
-  double VerticalWaveVelocity;
-  double HorizontalWaveVelocity;
+  double VerticalWaveVelocity=0;
+  double HorizontalWaveVelocity=0;
+  double phase=wavenumber_*mxyz[0]-wavefrequency_*motionTime;
 	
   if(waveModel_== "Sinusoidal_full_domain"){
-  VerticalWaveVelocity = amplitude_*omega*std::sin(phase);  
+  VerticalWaveVelocity = amplitude_*wavefrequency_*std::sin(phase);  
   HorizontalWaveVelocity = 0.;
   }
   else if(waveModel_== "Linear_prescribed"){
-  VerticalWaveVelocity = amplitude_*omega*std::sin(phase)*std::exp(-0.1*mxyz[2]/amplitude_);  
-  HorizontalWaveVelocity = amplitude_*omega*std::cos(phase);
+  VerticalWaveVelocity = amplitude_*wavefrequency_*std::sin(phase);  
+  HorizontalWaveVelocity = amplitude_*wavefrequency_*std::cos(phase);
   }
   else if (waveModel_ == "StokesSecondOrder_prescribed"){
-  VerticalWaveVelocity=0.;
-  HorizontalWaveVelocity=0.;	
+  VerticalWaveVelocity=amplitude_*wavefrequency_/std::tanh(wavenumber_*waterdepth_)*std::sin(phase)
+													+3./4.*wavefrequency_*wavenumber_*std::sinh(2*wavenumber_*waterdepth_)/std::pow(std::sinh(wavenumber_*waterdepth_),4)*std::sin(2.*phase);	
+  HorizontalWaveVelocity= amplitude_*wavefrequency_/std::tanh(wavenumber_*waterdepth_)*std::cos(phase)
+													+3./4.*wavefrequency_*wavenumber_*std::cosh(2*wavenumber_*waterdepth_)/std::pow(std::sinh(wavenumber_*waterdepth_),4)*std::cos(2.*phase);	
 	}
 	else if (waveModel_ == "StokesThirdOrder_prescribed"){
   VerticalWaveVelocity=0.;
@@ -160,11 +163,12 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
  
   if(mxyz[2] < sealevelz_ + eps){
   vel[0] = HorizontalWaveVelocity;
+	vel[2] = VerticalWaveVelocity ;
   }else{
   vel[0] = 0.;
+  vel[2] = 0.;
   }
 	vel[1] = 0.;
-	vel[2] = VerticalWaveVelocity ;
   
   return vel;
 }

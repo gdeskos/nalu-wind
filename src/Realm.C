@@ -941,8 +941,6 @@ Realm::setup_element_fields()
     const auto entityRank = realmUsesEdges_ ? stk::topology::EDGE_RANK : stk::topology::ELEM_RANK;
     const std::string fvm_fieldName = realmUsesEdges_ ? "edge_face_velocity_mag" :  "face_velocity_mag";
     const std::string sv_fieldName = realmUsesEdges_ ? "edge_swept_face_volume" :  "swept_face_volume";
-    std::cerr << "fvm_fieldName = " << fvm_fieldName << std::endl;
-    std::cerr << "sv_fieldName = " << sv_fieldName << std::endl;
     GenericFieldType* faceVelMag = &(metaData_->declare_field<GenericFieldType>(
                                      entityRank, fvm_fieldName));
     GenericFieldType* sweptFaceVolume = &(metaData_->declare_field<GenericFieldType>(
@@ -979,15 +977,12 @@ Realm::setup_interior_algorithms()
     stk::mesh::PartVector mmPartVec = meshMotionAlg_->get_partvec();
     if (realmUsesEdges_)
     {
-      std::cerr << "Setting up edge algorithm for mesh velocity" << std::endl;
       for (auto p: mmPartVec) {
-        std::cerr << "Setting edge algorithm for a part" << std::endl;
         geometryAlgDriver_->register_elem_algorithm<
           MeshVelocityEdgeAlg>(algType, p, "mesh_vel");
       }
     } else
     {
-      std::cerr << "Setting up element algorithm for mesh velocity" << std::endl;
       for (auto p: mmPartVec) {
         geometryAlgDriver_->register_elem_algorithm<
           MeshVelocityAlg>(algType, p, "mesh_vel");
