@@ -41,7 +41,6 @@
 #include <Simulation.h>
 #include <SolutionOptions.h>
 #include <SolverAlgorithmDriver.h>
-
 #include <overset/UpdateOversetFringeAlgorithmDriver.h>
 
 // edge_kernels
