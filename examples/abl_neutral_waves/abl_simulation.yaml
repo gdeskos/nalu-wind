@@ -162,7 +162,7 @@ realms:
       motion:
         - type: water_waves
           wave_motion_model: Linear_prescribed
-          amplitude:  2. 
+          amplitude:  4. 
           waveperiod: 11.28809102 
           wavelength: 250.
 
