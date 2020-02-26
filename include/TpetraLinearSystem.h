@@ -18,6 +18,7 @@
 #include <FieldTypeDef.h>
 
 #include <Kokkos_DefaultNode.hpp>
+#include <Kokkos_UnorderedMap.hpp>
 #include <Tpetra_MultiVector.hpp>
 #include <Tpetra_CrsMatrix.hpp>
 
@@ -79,15 +80,6 @@ public:
   void zeroSystem();
 
   void sumInto(
-      unsigned numEntities,
-      const stk::mesh::Entity* entities,
-      const SharedMemView<const double*> & rhs,
-      const SharedMemView<const double**> & lhs,
-      const SharedMemView<int*> & localIds,
-      const SharedMemView<int*> & sortPermutation,
-      const char * trace_tag);
-
-  void sumInto(
     unsigned numEntities,
     const ngp::Mesh::ConnectedNodes& entities,
     const SharedMemView<const double*,DeviceShmem> & rhs,
@@ -109,10 +101,6 @@ public:
     stk::mesh::FieldBase * solutionField,
     stk::mesh::FieldBase * bcValuesField,
     const stk::mesh::PartVector & parts,
-    const unsigned beginPos,
-    const unsigned endPos);
-
-  void prepareConstraints(
     const unsigned beginPos,
     const unsigned endPos);
 
