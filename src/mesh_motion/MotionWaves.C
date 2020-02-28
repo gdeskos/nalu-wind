@@ -73,7 +73,7 @@ void MotionWaves::build_transformation(
 
   double motionTime = (time < endTime_)? time : endTime_;
 
-	double k=2.*M_PI/wavelength_;
+  double k=2.*M_PI/wavelength_;
   double omega=2.*M_PI/waveperiod_;
   double phase=k*xyz[0]-omega*motionTime;
 

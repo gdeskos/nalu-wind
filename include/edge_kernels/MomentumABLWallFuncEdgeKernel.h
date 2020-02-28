@@ -36,6 +36,8 @@ public:
   KOKKOS_FORCEINLINE_FUNCTION MomentumABLWallFuncEdgeKernel() = default;
 
   KOKKOS_FORCEINLINE_FUNCTION virtual ~MomentumABLWallFuncEdgeKernel() = default;
+  
+  virtual void setup(const TimeIntegrator&);
 
   using Kernel::execute;
 
@@ -54,7 +56,7 @@ private:
   unsigned exposedAreaVec_ {stk::mesh::InvalidOrdinal};
   unsigned wallFricVel_    {stk::mesh::InvalidOrdinal};
   unsigned wallNormDist_   {stk::mesh::InvalidOrdinal};
-
+  unsigned coordinates_    {stk::mesh::InvalidOrdinal};
   //! Acceleration due to gravity (m/s^2)
   const DoubleType gravity_;
 
@@ -70,6 +72,9 @@ private:
   const DoubleType beta_h_{5.0};
   const DoubleType gamma_m_{16.0};
   const DoubleType gamma_h_{16.0};
+ 
+  //! Current time
+  DoubleType current_time_{0.0};
 
   MasterElement* meFC_{nullptr};
 };

@@ -16,7 +16,7 @@ nalu_abl_mesh:
   - [0.0, 0.0, 0.0]
   - [5000.0, 5000.0, 1000.0]
 
-  mesh_dimensions: [500, 500, 100]
+  mesh_dimensions: [50, 50, 20]
 
   xmin_boundary_name: west
 

@@ -7,18 +7,17 @@
 // for more details.
 //
 
-
 #include "edge_kernels/MomentumABLWallFuncEdgeKernel.h"
 #include "master_element/MasterElement.h"
 #include "master_element/MasterElementFactory.h"
 #include "SolutionOptions.h"
-
 #include "BuildTemplates.h"
 #include "ScratchViews.h"
 #include "utils/StkHelpers.h"
 #include "wind_energy/MoninObukhov.h"
 
 #include "stk_mesh/base/Field.hpp"
+#include "TimeIntegrator.h"
 
 namespace sierra {
 namespace nalu {
@@ -40,6 +39,7 @@ MomentumABLWallFuncEdgeKernel<BcAlgTraits>::MomentumABLWallFuncEdgeKernel(
     exposedAreaVec_(get_field_ordinal(meta, "exposed_area_vector", meta.side_rank())),
     wallFricVel_(get_field_ordinal(meta, "wall_friction_velocity_bip", meta.side_rank())),
     wallNormDist_(get_field_ordinal(meta, "wall_normal_distance_bip", meta.side_rank())),
+    coordinates_(get_field_ordinal(meta, "coordinates")),
     gravity_(gravity),
     z0_(z0),
     Tref_(Tref),
@@ -56,7 +56,18 @@ MomentumABLWallFuncEdgeKernel<BcAlgTraits>::MomentumABLWallFuncEdgeKernel(
   faceDataPreReqs.add_face_field(exposedAreaVec_, BcAlgTraits::numFaceIp_, BcAlgTraits::nDim_);
   faceDataPreReqs.add_face_field(wallFricVel_, BcAlgTraits::numFaceIp_);
   faceDataPreReqs.add_face_field(wallNormDist_, BcAlgTraits::numFaceIp_);
+  faceDataPreReqs.add_gathered_nodal_field(coordinates_, BcAlgTraits::nDim_);
+
+  faceDataPreReqs.add_coordinates_field(coordinates_, BcAlgTraits::nDim_, CURRENT_COORDINATES);
+
 }
+
+template <typename BcAlgTraits>
+void MomentumABLWallFuncEdgeKernel<BcAlgTraits>::setup(const TimeIntegrator& timeIntegrator)
+{
+  current_time_ = timeIntegrator.get_current_time();
+}
+
 
 template<typename BcAlgTraits>
 void
@@ -70,6 +81,9 @@ MomentumABLWallFuncEdgeKernel<BcAlgTraits>::execute(
   const DoubleType eps = 1.0e-8;
   const DoubleType Lmax = 1.0e8;
 
+
+  //const DoubleType time = realm_.get_current_time();
+
   // Unit normal vector
   NALU_ALIGNED DoubleType nx[BcAlgTraits::nDim_];
 
@@ -82,6 +96,9 @@ MomentumABLWallFuncEdgeKernel<BcAlgTraits>::execute(
   const auto& v_wallfricvel = scratchViews.get_scratch_view_1D(wallFricVel_);
   const auto& v_wallnormdist = scratchViews.get_scratch_view_1D(wallNormDist_);
 
+  // wall Coordinates
+  const auto& v_coords = scratchViews.get_scratch_view_2D(coordinates_);
+  
   const int* ipNodeMap = meFC_->ipNodeMap();
 
   for (int ip = 0; ip < BcAlgTraits::numFaceIp_; ++ip) {
@@ -89,8 +106,8 @@ MomentumABLWallFuncEdgeKernel<BcAlgTraits>::execute(
 
     DoubleType amag = 0.0;
     for (int d=0; d < BcAlgTraits::nDim_; ++d)
-      amag += v_areavec(ip, d) * v_areavec(ip, d);
-    amag = stk::math::sqrt(amag);
+        amag += v_areavec(ip, d) * v_areavec(ip, d);
+        amag = stk::math::sqrt(amag);
 
     // unit normal
     for (int d=0; d < BcAlgTraits::nDim_; ++d)
@@ -120,12 +137,16 @@ MomentumABLWallFuncEdgeKernel<BcAlgTraits>::execute(
 
     const DoubleType lambda =
       (rho * kappa_ * ustar / (stk::math::log(zh / z0_) - psim)) * amag;
+	// wave-related variables
+    const DoubleType k=2.*M_PI/500.;
+    const DoubleType omega=2.*M_PI/100.;
+    const DoubleType xi = v_coords(nodeR,0);
+    const DoubleType wave_phase=k*xi-omega*current_time_;
 
     for (int i=0; i < BcAlgTraits::nDim_; ++i) {
       const int rowR = nodeR * BcAlgTraits::nDim_ + i;
       DoubleType uiTan = 0.0;
       DoubleType uiBcTan = 0.0;
-
       for (int j=0; j < BcAlgTraits::nDim_; ++j) {
         DoubleType ninj = nx[i] * nx[j];
         if (i == j) {
@@ -142,7 +163,7 @@ MomentumABLWallFuncEdgeKernel<BcAlgTraits>::execute(
           lhs(rowR, colR) -= lambda * ninj;
         }
       }
-      rhs(rowR) -= lambda * (uiTan - uiBcTan);
+      rhs(rowR) -= 0.01*stk::math::cos(wave_phase)+lambda*(uiTan - uiBcTan); //lambda * (uiTan - uiBcTan);
     }
   }
 }
