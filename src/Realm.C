@@ -12,7 +12,6 @@
 #include <Realm.h>
 #include <Simulation.h>
 #include <NaluEnv.h>
-#include <InterfaceBalancer.h>
 
 // percept
 #if defined (NALU_USES_PERCEPT)
@@ -24,8 +23,6 @@
 
 #include <AuxFunction.h>
 #include <AuxFunctionAlgorithm.h>
-#include <ComputeGeometryBoundaryAlgorithm.h>
-#include <ComputeGeometryInteriorAlgorithm.h>
 #include <ConstantAuxFunction.h>
 #include <Enums.h>
 #include <EntityExposedFaceSorter.h>
@@ -62,7 +59,6 @@
 
 // overset
 #include <overset/OversetManager.h>
-#include <overset/OversetManagerSTK.h>
 
 #ifdef NALU_USES_TIOGA
 #include <overset/OversetManagerTIOGA.h>
@@ -75,10 +71,10 @@
 #include <wind_energy/BdyLayerStatistics.h>
 
 // actuator line
-#include <Actuator.h>
+#include <actuator/Actuator.h>
 #ifdef NALU_USES_OPENFAST
-#include <ActuatorLineFAST.h>
-#include <ActuatorDiskFAST.h>
+#include <actuator/ActuatorLineFAST.h>
+#include <actuator/ActuatorDiskFAST.h>
 #endif
 
 #include <wind_energy/ABLForcingAlgorithm.h>
@@ -123,6 +119,7 @@
 #include <stk_util/environment/WallTime.hpp>
 #include <stk_util/environment/perf_util.hpp>
 #include <stk_util/environment/FileUtils.hpp>
+#include <stk_util/util/ParameterList.hpp>
 
 // stk_mesh/base/fem
 #include <stk_mesh/base/BulkData.hpp>
@@ -145,6 +142,10 @@
 
 // stk_util
 #include <stk_util/parallel/ParallelReduce.hpp>
+
+// stk_balance
+#include <stk_balance/balance.hpp>
+#include <stk_balance/balanceUtils.hpp>
 
 // Ioss for propertManager (io)
 #include <Ioss_PropertyManager.h>
@@ -247,7 +248,7 @@ namespace nalu{
     periodicManager_(NULL),
     hasPeriodic_(false),
     hasFluids_(false),
-    globalParameters_(),
+    globalParameters_(new stk::util::ParameterList()),
     exposedBoundaryPart_(0),
     edgesPart_(0),
     checkForMissingBcs_(false),
@@ -474,10 +475,6 @@ Realm::initialize()
   timerPopulateMesh_ += time;
   NaluEnv::self().naluOutputP0() << "Realm::ioBroker_->populate_mesh() End" << std::endl;
 
-  if (doBalanceNodes_) {
-    balance_nodes();
-  }
-
   // If we want to create all internal edges, we want to do it before
   // field-data is allocated because that allows better performance in
   // the create-edges code.
@@ -499,6 +496,15 @@ Realm::initialize()
   time += NaluEnv::self().nalu_time();
   timerPopulateFieldData_ += time;
   NaluEnv::self().naluOutputP0() << "Realm::ioBroker_->populate_field_data() End" << std::endl;
+
+  // rebalance mesh using stk_balance
+  if (rebalanceMesh_) {
+    rebalance_mesh();
+  }
+
+  if (doBalanceNodes_) {
+    balance_nodes();
+  }
 
   if (doPromotion_) {
     promote_mesh();
@@ -730,6 +736,12 @@ Realm::load(const YAML::Node & node)
   if ( "None" != autoDecompType_ ) {
     NaluEnv::self().naluOutputP0() 
       <<"Warning: When using automatic_decomposition_type, one must have a serial file" << std::endl;
+  }
+
+  get_if_present(node, "rebalance_mesh", rebalanceMesh_, rebalanceMesh_);
+  if (rebalanceMesh_) {
+    get_required(node, "stk_rebalance_method", rebalanceMethod_);
+    NaluEnv::self().naluOutputP0() << "Nalu will rebalance mesh using " << rebalanceMethod_ << std::endl;
   }
 
   // activate aura
@@ -1203,7 +1215,7 @@ Realm::setup_initial_conditions()
   for (size_t j_ic = 0; j_ic < initialConditions_.size(); ++j_ic) {
     InitialCondition& initCond = *initialConditions_[j_ic];
 
-    const std::vector<std::string> targetNames = initCond.targetNames_;
+    const std::vector<std::string> targetNames = handle_all_element_part_alias(initCond.targetNames_);
 
     for (size_t itarget=0; itarget < targetNames.size(); ++itarget) {
       const std::string targetName = physics_part_name(targetNames[itarget]);
@@ -1736,12 +1748,12 @@ Realm::initialize_global_variables()
   // other variables created on the fly during Eqs registration
   const bool needInOutput = false;
   const bool needInRestart = true;
-  globalParameters_.set_param("timeStepNm1", 1.0, needInOutput, needInRestart);
-  globalParameters_.set_param("timeStepCount", 1, needInOutput, needInRestart);
+  globalParameters_->set_param("timeStepNm1", 1.0, needInOutput, needInRestart);
+  globalParameters_->set_param("timeStepCount", 1, needInOutput, needInRestart);
 
   // consider pushing this parameter to some higher level design
   if ( NULL != turbulenceAveragingPostProcessing_ )
-    globalParameters_.set_param("currentTimeFilter", 0.0, needInOutput, needInRestart);
+    globalParameters_->set_param("currentTimeFilter", 0.0, needInOutput, needInRestart);
 }
 
 //--------------------------------------------------------------------------
@@ -2133,6 +2145,7 @@ Realm::create_mesh()
   metaData_ = new stk::mesh::MetaData();
   bulkData_ = new stk::mesh::BulkData(*metaData_, pm, activateAura_ ? stk::mesh::BulkData::AUTO_AURA : stk::mesh::BulkData::NO_AUTO_AURA);
   ioBroker_ = new stk::io::StkMeshIoBroker( pm );
+  ioBroker_->set_auto_load_distribution_factor_per_nodeset(false);
   ioBroker_->set_bulk_data(*bulkData_);
 
   // allow for automatic decomposition
@@ -2296,8 +2309,8 @@ Realm::create_restart_mesh()
     }
 
     // now global params
-    stk::util::ParameterMapType::const_iterator i = globalParameters_.begin();
-    stk::util::ParameterMapType::const_iterator iend = globalParameters_.end();
+    stk::util::ParameterMapType::const_iterator i = globalParameters_->begin();
+    stk::util::ParameterMapType::const_iterator iend = globalParameters_->end();
     for (; i != iend; ++i) {
       std::string parameterName = (*i).first;
       stk::util::Parameter parameter = (*i).second;
@@ -2548,7 +2561,7 @@ Realm::initialize_non_conformal()
 void
 Realm::initialize_overset()
 {
-  oversetManager_->initialize();
+  oversetManager_->initialize(equationSystems_.all_systems_decoupled());
 }
 
 //--------------------------------------------------------------------------
@@ -2675,42 +2688,6 @@ Realm::compute_geometry()
 {
   // interior and boundary
   geometryAlgDriver_->execute();
-
-  // find total volume if the mesh moves at all
-  if ( does_mesh_move() ) {
-    double totalVolume = 0.0;
-    double maxVolume = -1.0e16;
-    double minVolume = 1.0e16;
-
-    ScalarFieldType *dualVolume = metaData_->get_field<ScalarFieldType>(stk::topology::NODE_RANK, "dual_nodal_volume");
-
-    stk::mesh::Selector s_local_nodes
-      = metaData_->locally_owned_part() &stk::mesh::selectField(*dualVolume);
-
-    stk::mesh::BucketVector const& node_buckets = bulkData_->get_buckets( stk::topology::NODE_RANK, s_local_nodes );
-    for ( stk::mesh::BucketVector::const_iterator ib = node_buckets.begin() ;
-	  ib != node_buckets.end() ; ++ib ) {
-      stk::mesh::Bucket & b = **ib ;
-      const stk::mesh::Bucket::size_type length   = b.size();
-      const double * dv = stk::mesh::field_data(*dualVolume, b);
-      for ( stk::mesh::Bucket::size_type k = 0 ; k < length ; ++k ) {
-        const double theVol = dv[k];
-        totalVolume += theVol;
-        maxVolume = std::max(theVol, maxVolume);
-        minVolume = std::min(theVol, minVolume);
-      }
-    }
-
-    // get min, max and sum over processes
-    double g_totalVolume = 0.0, g_minVolume = 0.0, g_maxVolume = 0.0;
-    stk::all_reduce_min(NaluEnv::self().parallel_comm(), &minVolume, &g_minVolume, 1);
-    stk::all_reduce_max(NaluEnv::self().parallel_comm(), &maxVolume, &g_maxVolume, 1);
-    stk::all_reduce_sum(NaluEnv::self().parallel_comm(), &totalVolume, &g_totalVolume, 1);
-
-    NaluEnv::self().naluOutputP0() << " Volume  " << g_totalVolume
-		    << " min: " << g_minVolume
-		    << " max: " << g_maxVolume << std::endl;
-  }
 }
 
 //--------------------------------------------------------------------------
@@ -2876,8 +2853,7 @@ Realm::register_interior_algorithm(
   stk::mesh::Part *part)
 {
   const AlgorithmType algType = INTERIOR;
-  geometryAlgDriver_->register_elem_algorithm<
-    GeometryInteriorAlg, ComputeGeometryInteriorAlgorithm>(
+  geometryAlgDriver_->register_elem_algorithm<GeometryInteriorAlg>(
       algType, part, "geometry");
 
   // Track parts that are registered to interior algorithms
@@ -2910,9 +2886,8 @@ Realm::register_wall_bc(
     = &(metaData_->declare_field<GenericFieldType>(static_cast<stk::topology::rank_t>(metaData_->side_rank()), "exposed_area_vector"));
   stk::mesh::put_field_on_mesh(*exposedAreaVec_, *part, nDim*numScsIp , nullptr);
 
-  const AlgorithmType algType = WALL;
-  geometryAlgDriver_
-    ->register_face_algorithm<GeometryBoundaryAlg, ComputeGeometryBoundaryAlgorithm>(
+  const AlgorithmType algType = BOUNDARY;
+  geometryAlgDriver_->register_face_algorithm<GeometryBoundaryAlg>(
       algType, part, "geometry");
 }
 
@@ -2942,9 +2917,8 @@ Realm::register_inflow_bc(
     = &(metaData_->declare_field<GenericFieldType>(static_cast<stk::topology::rank_t>(metaData_->side_rank()), "exposed_area_vector"));
   stk::mesh::put_field_on_mesh(*exposedAreaVec_, *part, nDim*numScsIp , nullptr);
 
-  const AlgorithmType algType = INFLOW;
-  geometryAlgDriver_
-    ->register_face_algorithm<GeometryBoundaryAlg, ComputeGeometryBoundaryAlgorithm>(
+  const AlgorithmType algType = BOUNDARY;
+  geometryAlgDriver_->register_face_algorithm<GeometryBoundaryAlg>(
       algType, part, "geometry");
 }
 
@@ -2975,9 +2949,8 @@ Realm::register_open_bc(
   stk::mesh::put_field_on_mesh(*exposedAreaVec_, *part, nDim*numScsIp , nullptr);
 
 
-  const AlgorithmType algType = OPEN;
-  geometryAlgDriver_
-    ->register_face_algorithm<GeometryBoundaryAlg, ComputeGeometryBoundaryAlgorithm>(
+  const AlgorithmType algType = BOUNDARY;
+  geometryAlgDriver_->register_face_algorithm<GeometryBoundaryAlg>(
       algType, part, "geometry");
 }
 
@@ -3007,9 +2980,8 @@ Realm::register_symmetry_bc(
     = &(metaData_->declare_field<GenericFieldType>(static_cast<stk::topology::rank_t>(metaData_->side_rank()), "exposed_area_vector"));
   stk::mesh::put_field_on_mesh(*exposedAreaVec_, *part, nDim*numScsIp , nullptr);
 
-  const AlgorithmType algType = SYMMETRY;
-  geometryAlgDriver_
-    ->register_face_algorithm<GeometryBoundaryAlg, ComputeGeometryBoundaryAlgorithm>(
+  const AlgorithmType algType = BOUNDARY;
+  geometryAlgDriver_->register_face_algorithm<GeometryBoundaryAlg>(
       algType, part, "geometry");
 }
 
@@ -3090,22 +3062,19 @@ Realm::register_non_conformal_bc(
   // push back the part for book keeping and, later, skin mesh
   bcPartVec_.push_back(part);
 
-  const AlgorithmType algType = NON_CONFORMAL;
-
   const int nDim = metaData_->spatial_dimension();
-  
   // register fields
   MasterElement *meFC = MasterElementRepo::get_surface_master_element(theTopo);
   const int numScsIp = meFC->num_integration_points();
-  
+
   // exposed area vector
   GenericFieldType *exposedAreaVec_
     = &(metaData_->declare_field<GenericFieldType>(static_cast<stk::topology::rank_t>(metaData_->side_rank()), "exposed_area_vector"));
   stk::mesh::put_field_on_mesh(*exposedAreaVec_, *part, nDim*numScsIp , nullptr);
-   
-  geometryAlgDriver_
-    ->register_legacy_algorithm<ComputeGeometryBoundaryAlgorithm>(
-      algType, part, "geometry");
+
+  const AlgorithmType algType = BOUNDARY;
+  geometryAlgDriver_->register_face_algorithm<GeometryBoundaryAlg>(
+    algType, part, "geometry");
 }
 
 //--------------------------------------------------------------------------
@@ -3121,39 +3090,21 @@ Realm::setup_overset_bc(
   // create manager while providing overset data
   if ( NULL == oversetManager_ ) {
     switch (oversetBCData.oversetConnectivityType_) {
-    case OversetBoundaryConditionData::NALU_STK:
-      NaluEnv::self().naluOutputP0()
-        << "Realm::setup_overset_bc:: Selecting STK-based overset connectivity algorithm"
-        << std::endl;
-      if (solutionOptions_->meshMotion_)
-        NaluEnv::self().naluOutputP0()
-          << "WARNING:: Using STK-based overset with mesh motion has not been tested "
-          << std::endl;
-      oversetManager_ = new OversetManagerSTK(*this, oversetBCData.userData_);
-      break;
-
     case OversetBoundaryConditionData::TPL_TIOGA:
 #ifdef NALU_USES_TIOGA
       oversetManager_ = new OversetManagerTIOGA(*this, oversetBCData.userData_);
       NaluEnv::self().naluOutputP0()
         << "Realm::setup_overset_bc:: Selecting TIOGA TPL for overset connectivity"
         << std::endl;
+      break;
 #else
       // should not get here... we should have thrown error in input file processing stage
       throw std::runtime_error("TIOGA TPL support not enabled during compilation phase");
-#endif
-// Avoid nvcc unreachable statement warnings
-#ifndef __CUDACC__
-      break;
 #endif
 
     case OversetBoundaryConditionData::OVERSET_NONE:
     default:
       throw std::runtime_error("Invalid setting for overset connectivity");
-// Avoid nvcc unreachable statement warnings
-#ifndef __CUDACC__
-      break;
-#endif
     }
   }   
 }
@@ -3229,7 +3180,7 @@ Realm::overset_orphan_node_field_update(
   const unsigned sizeRow,
   const unsigned sizeCol)
 {
-  oversetManager_->overset_orphan_node_field_update(theField, sizeRow, sizeCol);
+  oversetManager_->overset_update_field(theField, sizeRow, sizeCol);
 }
 
 //--------------------------------------------------------------------------
@@ -3355,15 +3306,15 @@ Realm::provide_restart_output()
 
       // push global variables for time step
       const double timeStepNm1 = timeIntegrator_->get_time_step();
-      globalParameters_.set_value("timeStepNm1", timeStepNm1);
-      globalParameters_.set_value("timeStepCount", timeStepCount);
+      globalParameters_->set_value("timeStepNm1", timeStepNm1);
+      globalParameters_->set_value("timeStepCount", timeStepCount);
 
       if ( NULL != turbulenceAveragingPostProcessing_ ) {
-        globalParameters_.set_value("currentTimeFilter", turbulenceAveragingPostProcessing_->currentTimeFilter_ );
+        globalParameters_->set_value("currentTimeFilter", turbulenceAveragingPostProcessing_->currentTimeFilter_ );
       }
 
-      stk::util::ParameterMapType::const_iterator i = globalParameters_.begin();
-      stk::util::ParameterMapType::const_iterator iend = globalParameters_.end();
+      stk::util::ParameterMapType::const_iterator i = globalParameters_->begin();
+      stk::util::ParameterMapType::const_iterator iend = globalParameters_->end();
       for (; i != iend; ++i)
       {
         std::string parameterName = (*i).first;
@@ -3622,6 +3573,29 @@ Realm::set_hypre_global_id()
     HypreIntType* hids = stk::mesh::field_data(*hypreGlobalId_, node);
     *hids = nidx++;
   }
+
+  auto& bulk = bulk_data();
+  std::vector<const stk::mesh::FieldBase*> fVec{hypreGlobalId_};
+
+  stk::mesh::copy_owned_to_shared(bulk, fVec);
+  stk::mesh::communicate_field_data(bulk.aura_ghosting(), fVec);
+
+  if (oversetManager_ != nullptr &&
+      oversetManager_->oversetGhosting_ != nullptr)
+    stk::mesh::communicate_field_data(
+      *oversetManager_->oversetGhosting_, fVec);
+
+  if (nonConformalManager_ != nullptr &&
+      nonConformalManager_->nonConformalGhosting_ != nullptr)
+    stk::mesh::communicate_field_data(
+      *nonConformalManager_->nonConformalGhosting_, fVec);
+
+  if (periodicManager_ != nullptr &&
+      periodicManager_->periodicGhosting_ != nullptr) {
+    periodicManager_->parallel_communicate_field(hypreGlobalId_);
+    periodicManager_->periodic_parallel_communicate_field(
+      hypreGlobalId_);
+  }
 #endif
 }
 
@@ -3839,7 +3813,7 @@ Realm::dump_simulation_time()
                      << " \tmin: " << g_minPeriodicSearchTime << " \tmax: " << g_maxPeriodicSearchTime << std::endl;
   }
 
-  // nonconformal
+  // nonconformal or overset
   if ( has_non_matching_boundary_face_alg() ) {
     double g_totalNonconformal = 0.0, g_minNonconformal= 0.0, g_maxNonconformal = 0.0;
     stk::all_reduce_min(NaluEnv::self().parallel_comm(), &timerNonconformal_, &g_minNonconformal, 1);
@@ -4574,6 +4548,7 @@ Realm::physics_part_name(std::string name) const
 std::vector<std::string>
 Realm::physics_part_names(std::vector<std::string> names) const
 {
+  names = handle_all_element_part_alias(names);
   if (doPromotion_) {
     std::transform(names.begin(), names.end(), names.begin(), [&](const std::string& name) {
       return super_element_part_name(name);
@@ -4853,12 +4828,30 @@ Realm::get_tanh_blending(
 }
 
 //--------------------------------------------------------------------------
+//-------- rebalance_mesh() ------------------------------------------------
+//--------------------------------------------------------------------------
+void Realm::rebalance_mesh()
+{
+#ifndef HAVE_ZOLTAN2_PARMETIS
+  if (rebalanceMethod_ == "parmetis")
+    throw std::runtime_error("Zoltan2 is not built with parmetis enabled, "
+                             "try a geometric balance method instead (rcb or rib)");
+#endif
+  stk::balance::GraphCreationSettings rebalanceSettings;
+  rebalanceSettings.setDecompMethod(rebalanceMethod_);
+  stk::balance::balanceStkMesh(rebalanceSettings, *bulkData_);
+}
+
+//--------------------------------------------------------------------------
 //-------- balance_nodes() -------------------------------------------------
 //--------------------------------------------------------------------------
 void Realm::balance_nodes()
 {
-  InterfaceBalancer balancer(meta_data(), bulk_data());
-  balancer.balance_node_entities(balanceNodeOptions_.target, balanceNodeOptions_.numIters);
+  stk::balance::GraphCreationSettings nodeBalanceSettings;
+  nodeBalanceSettings.setUseNodeBalancer(true);
+  nodeBalanceSettings.setNodeBalancerTargetLoadBalance(balanceNodeOptions_.target);
+  nodeBalanceSettings.setNodeBalancerMaxIterations(balanceNodeOptions_.numIters);
+  stk::balance::balanceStkMeshNodes(nodeBalanceSettings, *bulkData_);
 }
 
 //--------------------------------------------------------------------------
@@ -4869,6 +4862,27 @@ bool
 {
   // for now, adaptivity only; load-balance in the future?
   return solutionOptions_->activateAdaptivity_;
+}
+
+std::vector<std::string>
+Realm::handle_all_element_part_alias(const std::vector<std::string>& names) const
+{
+  if (names.size() == 1u && names.front() == allElementPartAlias) {
+    std::vector<std::string> new_names;
+    for (const auto* part : meta_data().get_mesh_parts()) {
+      ThrowRequire(part);
+      if (part->topology().rank() == stk::topology::ELEMENT_RANK) {
+        new_names.push_back(part->name());
+      }
+    }
+    return new_names;
+  }
+
+  if (std::find(names.begin(), names.end(), allElementPartAlias) != names.end()) {
+    NaluEnv::self().naluOutputP0() << "Part alias " << allElementPartAlias
+        << " present with other parts; " << allElementPartAlias << " must be a valid mesh part" << std::endl;
+  }
+  return names;
 }
 
 

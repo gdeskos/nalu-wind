@@ -15,11 +15,6 @@
 #include <LinearSolverTypes.h>
 #include <KokkosInterface.h>
 
-#include <Teuchos_RCP.hpp>
-
-#include <Teuchos_GlobalMPISession.hpp>
-#include <Teuchos_oblackholestream.hpp>
-
 #include <stk_ngp/Ngp.hpp>
 
 #include <vector>
@@ -172,17 +167,6 @@ public:
   }
 
   virtual void sumInto(
-      unsigned numEntities,
-      const stk::mesh::Entity* entities,
-      const SharedMemView<const double*> & rhs,
-      const SharedMemView<const double**> & lhs,
-      const SharedMemView<int*> & localIds,
-      const SharedMemView<int*> & sortPermutation,
-      const char * trace_tag
-      )=0;
-
-
-  virtual void sumInto(
     unsigned numEntities,
     const ngp::Mesh::ConnectedNodes& entities,
     const SharedMemView<const double*,DeviceShmem> & rhs,
@@ -204,10 +188,6 @@ public:
     stk::mesh::FieldBase * solutionField,
     stk::mesh::FieldBase * bcValuesField,
     const stk::mesh::PartVector & parts,
-    const unsigned beginPos,
-    const unsigned endPos)=0;
-
-  virtual void prepareConstraints(
     const unsigned beginPos,
     const unsigned endPos)=0;
 

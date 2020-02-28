@@ -1052,69 +1052,6 @@ void segregated_sum_into(MatrixType ownedLocalMatrix,
   }
 }
 
-void TpetraSegregatedLinearSystem::sumInto(unsigned numEntities,
-                                           const stk::mesh::Entity* entities,
-                                           const SharedMemView<const double*> & rhs,
-                                           const SharedMemView<const double**> & lhs,
-                                           const SharedMemView<int*> & localIds,
-                                           const SharedMemView<int*> & sortPermutation,
-                                           const char *  /* trace_tag */)
-{
-  constexpr bool forceAtomic = !std::is_same<sierra::nalu::DeviceSpace, Kokkos::Serial>::value;
-
-  ThrowAssertMsg(lhs.span_is_contiguous(), "LHS assumed contiguous");
-  ThrowAssertMsg(rhs.span_is_contiguous(), "RHS assumed contiguous");
-  ThrowAssertMsg(localIds.span_is_contiguous(), "localIds assumed contiguous");
-  ThrowAssertMsg(sortPermutation.span_is_contiguous(), "sortPermutation assumed contiguous");
-
-  const int n_obj = numEntities;
-  const int numRows = n_obj;
-
-  for(int i = 0; i < n_obj; i++) {
-    localIds[i] = entityToColLID_[entities[i].local_offset()];
-    sortPermutation[i] = i;
-  }
-  Tpetra::Details::shellSortKeysAndValues(localIds.data(), sortPermutation.data(), numRows);
-
-  for (int r = 0; r < numRows; ++r) {
-    int i = sortPermutation[r]/numDof_;
-    LocalOrdinal rowLid = entityToLID_[entities[i].local_offset()];
-    rowLid += sortPermutation[r]%numDof_;
-    const LocalOrdinal cur_perm_index = sortPermutation[r];
-    const double* const cur_lhs = &lhs(cur_perm_index*numDof_, 0);
-
-    if(rowLid < maxOwnedRowId_) {
-      segregated_sum_into_row(ownedLocalMatrix_.row(rowLid), n_obj, numDof_,
-                              localIds.data(), sortPermutation.data(), cur_lhs);
-
-      for(unsigned dofIdx = 0; dofIdx < numDof_; ++dofIdx) {
-        const double cur_rhs = rhs[cur_perm_index*numDof_ + dofIdx];
-        ThrowAssertMsg(std::isfinite(cur_rhs), "Inf or NAN rhs");
-        if (forceAtomic) {
-          Kokkos::atomic_add(&ownedLocalRhs_(rowLid, dofIdx), cur_rhs);
-        } else {
-          ownedLocalRhs_(rowLid, dofIdx) += cur_rhs;
-        }
-      }
-    }
-    else if (rowLid < maxSharedNotOwnedRowId_) {
-      LocalOrdinal actualLocalId = rowLid - maxOwnedRowId_;
-      segregated_sum_into_row(sharedNotOwnedLocalMatrix_.row(actualLocalId), n_obj, numDof_,
-                              localIds.data(), sortPermutation.data(), cur_lhs);
-
-      for(unsigned dofIdx = 0; dofIdx < numDof_; ++dofIdx) {
-        const double cur_rhs = rhs[cur_perm_index*numDof_ + dofIdx];
-        ThrowAssertMsg(std::isfinite(cur_rhs), "Inf or NAN rhs");
-        if (forceAtomic) {
-          Kokkos::atomic_add(&sharedNotOwnedLocalRhs_(actualLocalId, dofIdx), cur_rhs);
-        } else {
-          sharedNotOwnedLocalRhs_(actualLocalId, dofIdx) += cur_rhs;
-        }
-      }
-    }
-  }
-}
-
 template <typename RowViewType>
 KOKKOS_FUNCTION
 void reset_row(
@@ -1397,53 +1334,6 @@ void TpetraSegregatedLinearSystem::applyDirichletBCs(stk::mesh::FieldBase * solu
     }
   }
   adbc_time += NaluEnv::self().nalu_time();
-}
-
-void TpetraSegregatedLinearSystem::prepareConstraints(const unsigned beginPos,
-                                                      const unsigned endPos)
-{
-  Teuchos::ArrayView<const LocalOrdinal> indices;
-  Teuchos::ArrayView<const double> values;
-  std::vector<double> new_values;
-
-  const bool internalMatrixIsSorted = true;
-
-  //KOKKOS: Loop noparallel RCP Vector Matrix replaceValues
-  for( const OversetInfo* oversetInfo : realm_.oversetManager_->oversetInfoVec_) {
-
-    // extract orphan node and global id; process both owned and shared
-    stk::mesh::Entity orphanNode = oversetInfo->orphanNode_;
-    const stk::mesh::EntityId naluId = *stk::mesh::field_data(*realm_.naluGlobalId_, orphanNode);
-    const LocalOrdinal localIdOffset = lookup_myLID(myLIDs_, naluId, "prepareConstraints");
-
-    const LocalOrdinal localId = localIdOffset;
-    const bool useOwned = localId < maxOwnedRowId_;
-    const LocalOrdinal actualLocalId = useOwned ? localId : localId - maxOwnedRowId_;
-    Teuchos::RCP<LinSys::Matrix> matrix = useOwned ? ownedMatrix_ : sharedNotOwnedMatrix_;
-    const LinSys::LocalMatrix& local_matrix = matrix->getLocalMatrix();
-
-    if ( localId > maxSharedNotOwnedRowId_) {
-      throw std::runtime_error("logic error: localId > maxSharedNotOwnedRowId_");
-    }
-
-    // Adjust the LHS; full row is perfectly zero
-    matrix->getLocalRowView(actualLocalId, indices, values);
-    const size_t rowLength = values.size();
-    if (rowLength > 0) {
-      new_values.resize(rowLength);
-      for(size_t i=0; i < rowLength; ++i) {
-        new_values[i] = 0.0;
-      }
-      local_matrix.replaceValues(actualLocalId, &indices[0], rowLength, new_values.data(), internalMatrixIsSorted);
-    }
-
-    // Replace the RHS residual with zero
-    Teuchos::RCP<LinSys::MultiVector> rhs = useOwned ? ownedRhs_: sharedNotOwnedRhs_;
-    for(unsigned d = beginPos; d < endPos; ++d) {
-      const double bc_residual = 0.0;
-      rhs->replaceLocalValue(actualLocalId, d, bc_residual);
-    }
-  }
 }
 
 void TpetraSegregatedLinearSystem::resetRows(const std::vector<stk::mesh::Entity>& nodeList,

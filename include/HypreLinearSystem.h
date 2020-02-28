@@ -109,16 +109,6 @@ public:
    *  @param[in] trace_tag Debugging message
    */
   virtual void sumInto(
-      unsigned numEntities,
-      const stk::mesh::Entity* entities,
-      const SharedMemView<const double*> & rhs,
-      const SharedMemView<const double**> & lhs,
-      const SharedMemView<int*> & localIds,
-      const SharedMemView<int*> & sortPermutation,
-      const char * trace_tag
-  );
-
-  virtual void sumInto(
     unsigned numEntities,
     const ngp::Mesh::ConnectedNodes& entities,
     const SharedMemView<const double*, DeviceShmem> & rhs,
@@ -166,19 +156,6 @@ public:
     const stk::mesh::PartVector & parts,
     const unsigned beginPos,
     const unsigned endPos);
-
-  /** Prepare assembly for overset fringe nodes
-   *
-   *  The overset fringe nodes are skipped over by the sumInto method during
-   *  normal assembly process. This method toggles the flag to instruct sumInto
-   *  that the constraint rows are being filled at this stage.
-   */
-  virtual void prepareConstraints(
-    const unsigned,
-    const unsigned)
-  {
-    checkSkippedRows_ = false;
-  }
 
   /** Prepare assembly for Dirichlet-type rows
    *

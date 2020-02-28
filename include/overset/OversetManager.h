@@ -11,6 +11,8 @@
 #ifndef OVERSETMANAGER_H
 #define OVERSETMANAGER_H
 
+#include "overset/OversetFieldData.h"
+
 #include <stk_mesh/base/Selector.hpp>
 
 #include <vector>
@@ -60,7 +62,7 @@ public:
    *
    * This method must be implemented by concrete OGA implementations.
    */
-  virtual void initialize() = 0;
+  virtual void initialize(const bool isDecoupled = false) = 0;
 
   virtual void overset_orphan_node_field_update(
     stk::mesh::FieldBase*,
@@ -71,6 +73,11 @@ public:
    */
   virtual stk::mesh::Selector get_inactive_selector();
 
+  virtual void overset_update_fields(const std::vector<OversetFieldData>&) = 0;
+
+  virtual void overset_update_field(
+    stk::mesh::FieldBase* field, int nrows = 1, int ncols = 1) = 0;
+
   Realm& realm_;
 
   stk::mesh::MetaData* metaData_{nullptr};
@@ -79,15 +86,10 @@ public:
 
   stk::mesh::Ghosting* oversetGhosting_{nullptr};
 
-  stk::mesh::Part* inActivePart_{nullptr};
-
-  stk::mesh::Part* backgroundSurfacePart_{nullptr};
-
-  stk::mesh::PartVector orphanPointSurfaceVecBackground_;
-
   std::vector<OversetInfo*> oversetInfoVec_;
 
   std::vector<stk::mesh::Entity> holeNodes_;
+  std::vector<stk::mesh::Entity> fringeNodes_;
 
   std::vector<int> ghostCommProcs_;
 
