@@ -14,14 +14,14 @@
 #include "ngp_utils/NgpReducers.h"
 #include "Realm.h"
 #include "utils/StkHelpers.h"
-#include "ngp_utils/NgpFieldBLAS.h"
-#include "ngp_utils/NgpFieldUtils.h"
 
+#include "ngp_utils/NgpFieldBLAS.h"
 #include "stk_mesh/base/Field.hpp"
 #include "stk_mesh/base/FieldParallel.hpp"
 #include "stk_mesh/base/FieldBLAS.hpp"
 #include "stk_mesh/base/MetaData.hpp"
 #include "stk_ngp/NgpFieldParallel.hpp"
+
 
 namespace sierra {
 namespace nalu {
@@ -99,7 +99,7 @@ void GeometryAlgDriver::pre_work()
 
   ngpDualVol.set_all(ngpMesh, 0.0);
 
-  if (realm_.has_mesh_motion()) mesh_motion_prework();
+  mesh_motion_prework();
 
   if (realm_.realmUsesEdges_) {
     auto* edgeAreaVec = meta.template get_field<VectorFieldType>(
@@ -166,18 +166,15 @@ void GeometryAlgDriver::post_work()
   fields.push_back(&ngpDualVol);
 
   if (realm_.realmUsesEdges_) {
-    auto* edgeAreaVec = meta.template get_field<VectorFieldType>(
-      stk::topology::EDGE_RANK, "edge_area_vector");
-    fields.push_back(edgeAreaVec);
+    auto& ngpedgeAreaVec = nalu_ngp::get_ngp_field(meshInfo, "edge_area_vector");
+    fields.push_back(&ngpedgeAreaVec);
 
-    if (realm_.has_mesh_motion()) {
-        auto* meshFaceVel = meta.get_field(
-            stk::topology::EDGE_RANK, "edge_face_velocity_mag");
-        fields.push_back(meshFaceVel);
-        auto* edgeSweptVol = meta.get_field(
-            stk::topology::EDGE_RANK, "edge_swept_face_volume");
-        fields.push_back(edgeSweptVol);
-    }
+    //if (realm_.has_mesh_motion()) {
+    auto& ngpedgeFaceVel  = nalu_ngp::get_ngp_field(meshInfo, "edge_face_velocity_mag");
+    auto& ngpedgeSweptVol = nalu_ngp::get_ngp_field(meshInfo, "edge_swept_face_volume");
+    fields.push_back(&ngpedgeFaceVel);
+    fields.push_back(&ngpedgeSweptVol);
+    //}
   }
 
   if (hasWallFunc_) {

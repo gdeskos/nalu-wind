@@ -1,6 +1,8 @@
 #ifndef MOTIONWAVES_H
 #define MOTIONWAVES_H
 
+#include <iostream>
+#include <cmath>
 #include "MotionBase.h"
 
 namespace sierra{
