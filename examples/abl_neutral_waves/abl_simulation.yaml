@@ -162,9 +162,9 @@ realms:
       motion:
         - type: water_waves
           wave_motion_model: Linear_prescribed
-          amplitude:  4. 
-          waveperiod: 11.28809102 
-          wavelength: 250.
+          amplitude:  20. 
+          waveperiod: 200. 
+          wavelength: 1000.
 
   solution_options:
     name: myOptions
@@ -256,6 +256,7 @@ realms:
     output_node_set: no
     output_variables:
     - mesh_displacement
+    - mesh_velocity
     - velocity
     - pressure
     - enthalpy

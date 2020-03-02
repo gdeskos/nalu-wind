@@ -9,7 +9,7 @@
 
 # Create the mesh
 # This will read the mesh inputs form the file and generate the mesh
-#~/Software/NaluWindUtils/build/src/mesh/abl_mesh -i abl_preprocess.yaml
+~/wind-utils/build/src/mesh/abl_mesh -i abl_preprocess.yaml
 
 # Initialize the inflow
-~/Software/NaluWindUtils/build/src/preprocessing/nalu_preprocess -i abl_preprocess.yaml
+~/wind-utils/build/src/preprocessing/nalu_preprocess -i abl_preprocess.yaml
