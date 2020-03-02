@@ -1,0 +1,21 @@
+# -*- mode: yaml -*-
+
+nalu_preprocess:
+
+  input_db: couette_waves.exo
+
+  output_db: couette_waves_ic.exo
+
+  tasks:
+    - init_couette_fields
+
+  init_couette_fields:
+    fluid_parts: [fluid_part]
+
+    velocity:
+      Re_tau : 130 
+      U0 : 1.0
+      viscosity : 0.000125   
+    #temperature:  
+    #  Ri : 0.031
+    #  T0 : 300. 
