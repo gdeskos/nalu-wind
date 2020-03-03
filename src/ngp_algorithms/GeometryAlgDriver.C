@@ -136,6 +136,8 @@ void GeometryAlgDriver::mesh_motion_prework()
   const std::string svFieldName = realm_.realmUsesEdges_ ? "edge_swept_face_volume" :  "swept_face_volume";
   auto ngpSweptVol = nalu_ngp::get_ngp_field(realm_.mesh_info(), svFieldName, entityRank);
   ngpSweptVol.set_all(ngpMesh,0.0);
+  auto * sweptVol = meta.get_field<GenericFieldType>(entityRank, svFieldName);
+    stk::mesh::field_fill(0.0, *sweptVol);
 
   if (realm_.realmUsesEdges_) {
     const double dt = realm_.get_time_step();
@@ -168,7 +170,7 @@ void GeometryAlgDriver::post_work()
   const auto entityRank = realm_.realmUsesEdges_ ? stk::topology::EDGE_RANK : stk::topology::ELEM_RANK;
 
   if (realm_.realmUsesEdges_) {
-    auto& ngpedgeAreaVec = nalu_ngp::get_ngp_field(meshInfo, "edge_area_vector");
+    auto& ngpedgeAreaVec = nalu_ngp::get_ngp_field(meshInfo, "edge_area_vector",entityRank);
     fields.push_back(&ngpedgeAreaVec);
 
     //if (realm_.has_mesh_motion()) {

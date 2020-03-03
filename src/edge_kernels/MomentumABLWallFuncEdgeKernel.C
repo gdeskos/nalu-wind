@@ -145,7 +145,7 @@ MomentumABLWallFuncEdgeKernel<BcAlgTraits>::execute(
           lhs(rowR, colR) -= lambda * ninj;
         }
       }
-      rhs(rowR) -= lambda * (uiTan - uiBcTan - uiBcMeshTan);
+      rhs(rowR) -= lambda * (uiTan - uiBcTan);
     }
   }
 }
