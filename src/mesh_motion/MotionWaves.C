@@ -39,8 +39,10 @@ void MotionWaves::load(const YAML::Node& node)
   else if (waveModel_=="Linear_prescribed"){
   get_if_present(node, "amplitude", amplitude_, amplitude_);
   get_if_present(node, "waveperiod", waveperiod_, waveperiod_);	
-	get_if_present(node, "wavelength",wavelength_,wavelength_); 
-	}
+  get_if_present(node, "wavelength",wavelength_,wavelength_); 
+  get_if_present(node, "mesh_damping_length", meshdampinglength_, meshdampinglength_);	
+  get_if_present(node, "mesh_damping_coeff", meshdampingcoeff_, meshdampingcoeff_);  
+  }
   else if (waveModel_=="StokesSecondOrder_prescribed"){
   get_if_present(node, "amplitude", amplitude_, amplitude_);
   get_if_present(node, "waveperiod", waveperiod_, waveperiod_);	
@@ -83,17 +85,16 @@ void MotionWaves::build_transformation(
 	ThreeDVecType curr_disp={};
 	curr_disp[0]=0.;
 	curr_disp[1]=0.;
-	
-	
+		
 	if(waveModel_== "Sinusoidal_full_domain"){
 	curr_disp[2]=sealevelz_+amplitude_*std::cos(phase);
 	}
 	else if(waveModel_== "Linear_prescribed"){
-	curr_disp[2]=sealevelz_+amplitude_*std::cos(phase)*std::exp(-0.1*xyz[2]/amplitude_);
+	curr_disp[2]=sealevelz_+amplitude_*std::cos(phase)*std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_);
 	}
-  else if (waveModel_ == "StokesSecondOrder_prescribed"){
-  curr_disp[2]=sealevelz_+amplitude_*(std::cos(phase)+wavenumber_*amplitude_*(3-dispersion_*dispersion_)/(4.*dispersion_*dispersion_*dispersion_)*std::cos(2.*phase))*std::exp(-0.1*xyz[2]/amplitude_);
-  }
+    else if (waveModel_ == "StokesSecondOrder_prescribed"){
+    curr_disp[2]=sealevelz_+amplitude_*(std::cos(phase)+wavenumber_*amplitude_*(3-dispersion_*dispersion_)/(4.*dispersion_*dispersion_*dispersion_)*std::cos(2.*phase))*std::exp(-0.1*xyz[2]/amplitude_);
+    }
 	else if (waveModel_ == "StokesThirdOrder_prescribed"){
 	//curr_disp[2]=sealevelz_*((1.0-1.0/16.0*(wavenumber_*amplitude_)*(wavenumber_*amplitude_))*std::cos(phase)+1.0/2.0*(wavenumber_*amplitude_)*std::cos(2.*phase)+3./8.*(wavenumber_*amplitude_)*(wavenumber_*amplitude_)*std::cos(3*phase));
 	}

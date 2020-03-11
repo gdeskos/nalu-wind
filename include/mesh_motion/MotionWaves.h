@@ -57,12 +57,16 @@ private:
   std::string waveModel_{"Sinusoidal_full_domain"};   
   double amplitude_{0.1};
   double waveperiod_{1.0};
-	double wavefrequency_{2.*M_PI}; // Angular frequency omega=2*pi/tau (tau being the period)
-	double wavelength_{1.0};
-	double wavenumber_{2.*M_PI}; // Angular wavenumber k=2*pi/lambda (lambda being the wavenumber)
-	double sealevelz_{0.0};
-	double dispersion_{1.0};
+  double wavefrequency_{2.*M_PI}; // Angular frequency omega=2*pi/tau (tau being the period)
+  double wavelength_{1.0};
+  double wavenumber_{2.*M_PI}; // Angular wavenumber k=2*pi/lambda (lambda being the wavenumber)
+  double sealevelz_{0.0};
+  // Deformation damping function
+  double meshdampinglength_{1000};
+  int meshdampingcoeff_{3};
+  double dispersion_{1.0};
   double waterdepth_{50.};
+
 };
 
 } // nalu
