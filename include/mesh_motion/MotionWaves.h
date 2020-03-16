@@ -66,7 +66,7 @@ private:
   int meshdampingcoeff_{3};
   double dispersion_{1.0};
   double waterdepth_{50.};
-
+  double length_{0.};
 };
 
 } // nalu

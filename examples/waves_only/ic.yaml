@@ -2,9 +2,9 @@
 
 nalu_preprocess:
 
-  input_db: couette_waves.exo
+  input_db: waves_only.exo
 
-  output_db: couette_waves_ic.exo
+  output_db: waves_only_ic.exo
 
   tasks:
     - init_couette_fields

@@ -2,7 +2,7 @@
 
 nalu_abl_mesh:
 
-  output_db: couette_waves.exo
+  output_db: waves_only.exo
 
   ioss_8bit_ints: no
 
@@ -34,4 +34,4 @@ nalu_abl_mesh:
   z_spacing:
     spacing_type: geometric_stretching
     stretching_factor: 1.03
-    bidirectional: true 
+    bidirectional: false 

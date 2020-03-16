@@ -28,36 +28,41 @@ void MotionWaves::load(const YAML::Node& node)
 {
   // Get type of input prescribed wave
 	
-	get_if_present(node,"wave_motion_model", waveModel_, waveModel_);
+  get_if_present(node,"wave_motion_model", waveModel_, waveModel_);
+  // Get vertical mesh damping amplitude
+  get_if_present(node, "mesh_damping_length", meshdampinglength_, meshdampinglength_);	
+  get_if_present(node, "mesh_damping_coeff", meshdampingcoeff_, meshdampingcoeff_);  
 
   if (waveModel_=="Sinusoidal_full_domain"){
   get_if_present(node, "amplitude", amplitude_, amplitude_);
   get_if_present(node, "waveperiod", waveperiod_, waveperiod_);	
-	get_if_present(node, "wavelength",wavelength_,wavelength_); 
-	// Compute the wave number
+  get_if_present(node, "wavelength",wavelength_,wavelength_); 
+  // Compute the wave number
   }
   else if (waveModel_=="Linear_prescribed"){
   get_if_present(node, "amplitude", amplitude_, amplitude_);
   get_if_present(node, "waveperiod", waveperiod_, waveperiod_);	
   get_if_present(node, "wavelength",wavelength_,wavelength_); 
-  get_if_present(node, "mesh_damping_length", meshdampinglength_, meshdampinglength_);	
-  get_if_present(node, "mesh_damping_coeff", meshdampingcoeff_, meshdampingcoeff_);  
   }
   else if (waveModel_=="StokesSecondOrder_prescribed"){
   get_if_present(node, "amplitude", amplitude_, amplitude_);
   get_if_present(node, "waveperiod", waveperiod_, waveperiod_);	
-	get_if_present(node, "wavelength",wavelength_,wavelength_);  
+  get_if_present(node, "wavelength",wavelength_,wavelength_);  
   get_if_present(node, "waterdepth_", waterdepth_, waterdepth_);	
   }
-  else if (waveModel_=="StokesThirdOrder_prescribed"){
-  
+  else if (waveModel_=="2DRidge"){
+  get_if_present(node, "amplitude", amplitude_, amplitude_);
+  get_if_present(node, "length", length_, length_); 
   }
-	else if (waveModel_ == "HOS"){
-
-	}
-	else {
+  else if (waveModel_=="3DHill"){
+  get_if_present(node, "amplitude", amplitude_, amplitude_);
+  get_if_present(node, "length", length_, length_); 
+  }
+  else if (waveModel_ == "Nonlinear_Spectral_Prescribed"){
+  }
+  else {
     throw std::runtime_error("invalid wave_motion model specified ");
-	} 	     
+  } 	     
   double eps = std::numeric_limits<double>::epsilon();
 	
   // Time parameters
@@ -93,12 +98,19 @@ void MotionWaves::build_transformation(
 	curr_disp[2]=sealevelz_+amplitude_*std::cos(phase)*std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_);
 	}
     else if (waveModel_ == "StokesSecondOrder_prescribed"){
-    curr_disp[2]=sealevelz_+amplitude_*(std::cos(phase)+wavenumber_*amplitude_*(3-dispersion_*dispersion_)/(4.*dispersion_*dispersion_*dispersion_)*std::cos(2.*phase))*std::exp(-0.1*xyz[2]/amplitude_);
+    curr_disp[2]=sealevelz_+amplitude_*(std::cos(phase)+wavenumber_*amplitude_*(3-dispersion_*dispersion_)/(4.*dispersion_*dispersion_*dispersion_)*std::cos(2.*phase))*std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_);
     }
-	else if (waveModel_ == "StokesThirdOrder_prescribed"){
-	//curr_disp[2]=sealevelz_*((1.0-1.0/16.0*(wavenumber_*amplitude_)*(wavenumber_*amplitude_))*std::cos(phase)+1.0/2.0*(wavenumber_*amplitude_)*std::cos(2.*phase)+3./8.*(wavenumber_*amplitude_)*(wavenumber_*amplitude_)*std::cos(3*phase));
-	}
-	else if (waveModel_ =="HOS"){
+	else if (waveModel_ == "2DRidge"){
+    if(xyz[0]>-length_ && xyz[0]<length_){
+    curr_disp[2]=amplitude_*std::cos(M_PI*xyz[0]/(2.*length_))*std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_);
+    }
+    }
+	else if (waveModel_ == "3DHill"){
+    if(std::pow(xyz[0]*xyz[0]+xyz[1]*xyz[1],0.5)<length_){
+	curr_disp[2]=amplitude_*std::cos(M_PI*std::pow(xyz[0]*xyz[0]+xyz[1]*xyz[1],0.5)/(2.*length_))*std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_);
+    }
+    }
+	else if (waveModel_ =="Nonlinear_Spectral_Prescribed"){
 	
 	}
 	else {
@@ -133,27 +145,29 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
   double HorizontalWaveVelocity=0;
   double phase=wavenumber_*mxyz[0]-wavefrequency_*motionTime;
 	
-  if(waveModel_== "Sinusoidal_full_domain"){
-  VerticalWaveVelocity = amplitude_*wavefrequency_*std::sin(phase);  
-  HorizontalWaveVelocity = 0.;
-  }
-  else if(waveModel_== "Linear_prescribed"){
-  VerticalWaveVelocity = amplitude_*wavefrequency_*std::sin(phase);  
-  HorizontalWaveVelocity = amplitude_*wavefrequency_*std::cos(phase);
-  }
-  else if (waveModel_ == "StokesSecondOrder_prescribed"){
-  VerticalWaveVelocity=amplitude_*wavefrequency_/std::tanh(wavenumber_*waterdepth_)*std::sin(phase)
-													+3./4.*wavefrequency_*wavenumber_*std::sinh(2*wavenumber_*waterdepth_)/std::pow(std::sinh(wavenumber_*waterdepth_),4)*std::sin(2.*phase);	
-  HorizontalWaveVelocity= amplitude_*wavefrequency_/std::tanh(wavenumber_*waterdepth_)*std::cos(phase)
-													+3./4.*wavefrequency_*wavenumber_*std::cosh(2*wavenumber_*waterdepth_)/std::pow(std::sinh(wavenumber_*waterdepth_),4)*std::cos(2.*phase);	
-	}
-	else if (waveModel_ == "StokesThirdOrder_prescribed"){
-  VerticalWaveVelocity=0.;
-  HorizontalWaveVelocity=0.;	
-  }
-	else if (waveModel_ =="HOS"){
-  VerticalWaveVelocity=0.;
-  HorizontalWaveVelocity=0.;		
+    if(waveModel_== "Sinusoidal_full_domain"){
+        VerticalWaveVelocity = amplitude_*wavefrequency_*std::sin(phase);  
+        HorizontalWaveVelocity = 0.;
+    }
+    else if(waveModel_== "Linear_prescribed"){
+        VerticalWaveVelocity = amplitude_*wavefrequency_*std::sin(phase);  
+        HorizontalWaveVelocity = amplitude_*wavefrequency_*std::cos(phase);
+    }
+    else if (waveModel_ == "StokesSecondOrder_prescribed"){
+        VerticalWaveVelocity=amplitude_*wavefrequency_/std::tanh(wavenumber_*waterdepth_)*std::sin(phase)+3./4.*wavefrequency_*wavenumber_*std::sinh(2*wavenumber_*waterdepth_)/std::pow(std::sinh(wavenumber_*waterdepth_),4)*std::sin(2.*phase);	
+        HorizontalWaveVelocity= amplitude_*wavefrequency_/std::tanh(wavenumber_*waterdepth_)*std::cos(phase)+3./4.*wavefrequency_*wavenumber_*std::cosh(2*wavenumber_*waterdepth_)/std::pow(std::sinh(wavenumber_*waterdepth_),4)*std::cos(2.*phase);	
+    }
+    else if (waveModel_ == "2DRidge"){
+        VerticalWaveVelocity=0.;
+        HorizontalWaveVelocity=0.;	
+    }
+    else if (waveModel_ == "3DHill"){
+        VerticalWaveVelocity=0.;
+        HorizontalWaveVelocity=0.;	
+    }
+	else if (waveModel_ =="Nonlinear_Spectral_Prescribed"){
+        VerticalWaveVelocity=0.;
+        HorizontalWaveVelocity=0.;		
 	}
 	else {
     throw std::runtime_error("invalid wave_motion model specified ");
