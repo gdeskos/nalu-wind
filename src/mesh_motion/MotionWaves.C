@@ -58,7 +58,7 @@ void MotionWaves::load(const YAML::Node& node)
   get_if_present(node, "amplitude", amplitude_, amplitude_);
   get_if_present(node, "length", length_, length_); 
   }
-  else if (waveModel_ == "Nonlinear_Spectral_Prescribed"){
+  else if (waveModel_ =="Nonlinear_Spectral_Prescribed"){
   }
   else {
     throw std::runtime_error("invalid wave_motion model specified ");
