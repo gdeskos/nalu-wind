@@ -135,7 +135,7 @@ class Realm {
   void setup_initial_conditions();
   void setup_property();
   void extract_universal_constant( 
-    const std::string name, double &value, const bool useDefault);
+  const std::string name, double &value, const bool useDefault);
   void augment_property_map(
     PropertyIdentifier propID,
     ScalarFieldType *theField);

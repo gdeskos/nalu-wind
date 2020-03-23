@@ -58,7 +58,7 @@ void MotionWaves::load(const YAML::Node& node)
   get_if_present(node, "amplitude", amplitude_, amplitude_);
   get_if_present(node, "length", length_, length_); 
   }
-  else if (waveModel_ =="Nonlinear_Spectral_Prescribed"){
+  else if (waveModel_ =="External_prescribed"){ 
   }
   else {
     throw std::runtime_error("invalid wave_motion model specified ");
@@ -87,9 +87,9 @@ void MotionWaves::build_transformation(
   double motionTime = (time < endTime_)? time : endTime_;
 
   double phase=wavenumber_*xyz[0]-wavefrequency_*motionTime;
-	ThreeDVecType curr_disp={};
-	curr_disp[0]=0.;
-	curr_disp[1]=0.;
+  ThreeDVecType curr_disp={};
+  curr_disp[0]=0.;
+  curr_disp[1]=0.;
 		
 	if(waveModel_== "Sinusoidal_full_domain"){
 	curr_disp[2]=sealevelz_+amplitude_*std::cos(phase);
@@ -110,8 +110,7 @@ void MotionWaves::build_transformation(
 	curr_disp[2]=amplitude_*std::cos(M_PI*std::pow(xyz[0]*xyz[0]+xyz[1]*xyz[1],0.5)/(2.*length_))*std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_);
     }
     }
-	else if (waveModel_ =="Nonlinear_Spectral_Prescribed"){
-	
+	else if (waveModel_ =="External_prescribed"){
 	}
 	else {
     throw std::runtime_error("invalid wave_motion model specified ");
@@ -141,34 +140,37 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
   
   double motionTime = (time < endTime_)? time : endTime_;
 
+  double StreamwiseWaveVelocity=0;
+  double LateralWaveVelocity=0;
   double VerticalWaveVelocity=0;
-  double HorizontalWaveVelocity=0;
   double phase=wavenumber_*mxyz[0]-wavefrequency_*motionTime;
 	
     if(waveModel_== "Sinusoidal_full_domain"){
         VerticalWaveVelocity = amplitude_*wavefrequency_*std::sin(phase);  
-        HorizontalWaveVelocity = 0.;
+        StreamwiseWaveVelocity = 0.;
+        LateralWaveVelocity =0.;
     }
     else if(waveModel_== "Linear_prescribed"){
         VerticalWaveVelocity = amplitude_*wavefrequency_*std::sin(phase);  
-        HorizontalWaveVelocity = amplitude_*wavefrequency_*std::cos(phase);
+        StreamwiseWaveVelocity = amplitude_*wavefrequency_*std::cos(phase);
     }
     else if (waveModel_ == "StokesSecondOrder_prescribed"){
         VerticalWaveVelocity=amplitude_*wavefrequency_/std::tanh(wavenumber_*waterdepth_)*std::sin(phase)+3./4.*wavefrequency_*wavenumber_*std::sinh(2*wavenumber_*waterdepth_)/std::pow(std::sinh(wavenumber_*waterdepth_),4)*std::sin(2.*phase);	
-        HorizontalWaveVelocity= amplitude_*wavefrequency_/std::tanh(wavenumber_*waterdepth_)*std::cos(phase)+3./4.*wavefrequency_*wavenumber_*std::cosh(2*wavenumber_*waterdepth_)/std::pow(std::sinh(wavenumber_*waterdepth_),4)*std::cos(2.*phase);	
+        StreamwiseWaveVelocity= amplitude_*wavefrequency_/std::tanh(wavenumber_*waterdepth_)*std::cos(phase)+3./4.*wavefrequency_*wavenumber_*std::cosh(2*wavenumber_*waterdepth_)/std::pow(std::sinh(wavenumber_*waterdepth_),4)*std::cos(2.*phase);	
     }
     else if (waveModel_ == "2DRidge"){
         VerticalWaveVelocity=0.;
-        HorizontalWaveVelocity=0.;	
+        StreamwiseWaveVelocity=0.;	
     }
     else if (waveModel_ == "3DHill"){
         VerticalWaveVelocity=0.;
-        HorizontalWaveVelocity=0.;	
+        StreamwiseWaveVelocity=0.;	
     }
-	else if (waveModel_ =="Nonlinear_Spectral_Prescribed"){
-        VerticalWaveVelocity=0.;
-        HorizontalWaveVelocity=0.;		
-	}
+	else if (waveModel_ =="External_prescribed"){
+        //StreamwiseWaveVelocity=vel[0];		
+        //LateralWaveVelocity=vel[1];
+        //VerticalWaveVelocity=vel[2];
+    }
 	else {
     throw std::runtime_error("invalid wave_motion model specified ");
 	}
@@ -177,13 +179,14 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
   
  
   if(mxyz[2] < sealevelz_ + eps){
-  vel[0] = HorizontalWaveVelocity;
+    vel[0] = StreamwiseWaveVelocity;
+	vel[1] = LateralWaveVelocity;
 	vel[2] = VerticalWaveVelocity ;
   }else{
-  vel[0] = 0.;
-  vel[2] = 0.;
+    vel[0] = 0.;
+    vel[1] = 0.;
+    vel[2] = 0.;
   }
-	vel[1] = 0.;
   
   return vel;
 }

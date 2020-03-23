@@ -94,11 +94,11 @@ realms:
       use_wall_function: no 
 
   mesh_motion:
-    - name: waterwaves 
+    - name: waves 
       mesh_parts: [fluid_part]
       frame: non_inertial
       motion:
-        - type: water_waves
+        - type: waves
           wave_motion_model: Linear_prescribed
           amplitude: 0.01591549 
           waveperiod: 1.42857143
