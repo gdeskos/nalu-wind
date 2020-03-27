@@ -99,7 +99,9 @@ void GeometryAlgDriver::pre_work()
 
   ngpDualVol.set_all(ngpMesh, 0.0);
 
+  if (realm_.has_mesh_motion()) {
   mesh_motion_prework();
+  }
 
   if (realm_.realmUsesEdges_) {
     auto* edgeAreaVec = meta.template get_field<VectorFieldType>(
@@ -173,12 +175,12 @@ void GeometryAlgDriver::post_work()
     auto& ngpedgeAreaVec = nalu_ngp::get_ngp_field(meshInfo, "edge_area_vector",entityRank);
     fields.push_back(&ngpedgeAreaVec);
 
-    //if (realm_.has_mesh_motion()) {
+    if (realm_.has_mesh_motion()) {
     auto& ngpedgeFaceVel  = nalu_ngp::get_ngp_field(meshInfo, "edge_face_velocity_mag",entityRank);
     auto& ngpedgeSweptVol = nalu_ngp::get_ngp_field(meshInfo, "edge_swept_face_volume",entityRank);
     fields.push_back(&ngpedgeFaceVel);
     fields.push_back(&ngpedgeSweptVol);
-    //}
+    }
   }
 
   if (hasWallFunc_) {

@@ -28,8 +28,7 @@ ContinuityEdgeSolverAlg::ContinuityEdgeSolverAlg(
   pressure_ = get_field_ordinal(meta, "pressure");
   Gpdx_ = get_field_ordinal(meta, "dpdx");
   edgeAreaVec_ = get_field_ordinal(meta, "edge_area_vector", stk::topology::EDGE_RANK);
-  edgeFaceVelMag_ = 
-    get_field_ordinal(realm.meta_data(), "edge_face_velocity_mag", stk::topology::EDGE_RANK);
+  //edgeFaceVelMag_ = get_field_ordinal(realm.meta_data(), "edge_face_velocity_mag", stk::topology::EDGE_RANK);
   Udiag_ = get_field_ordinal(meta, "momentum_diag");
 }
 
@@ -61,7 +60,7 @@ ContinuityEdgeSolverAlg::execute()
   const auto pressure = fieldMgr.get_field<double>(pressure_);
   const auto udiag = fieldMgr.get_field<double>(Udiag_);
   const auto edgeAreaVec = fieldMgr.get_field<double>(edgeAreaVec_);
-  const auto edgeFaceVelMag = fieldMgr.get_field<double>(edgeFaceVelMag_);
+  //const auto edgeFaceVelMag = fieldMgr.get_field<double>(edgeFaceVelMag_);
 
   run_algorithm(
     realm_.bulk_data(),
@@ -97,9 +96,14 @@ ContinuityEdgeSolverAlg::execute()
         axdx += av[d] * dxj;
       }
       const DblType inv_axdx = 1.0 / axdx;
+      
+      DblType tmdot = -projTimeScale * (pressureR - pressureL) * asq * inv_axdx; 
+      if(realm_.has_mesh_motion()){
+        edgeFaceVelMag_=get_field_ordinal(realm_.meta_data(), "edge_face_velocity_mag", stk::topology::EDGE_RANK);
+        const auto edgeFaceVelMag = fieldMgr.get_field<double>(edgeFaceVelMag_);
+        tmdot -= rhoIp * edgeFaceVelMag.get(edge,0);
+      }
 
-      DblType tmdot = -projTimeScale * (pressureR - pressureL) * asq * inv_axdx
-        - rhoIp * edgeFaceVelMag.get(edge,0);
       for (int d = 0; d < ndim; ++d) {
         const DblType dxj =
           coordinates.get(nodeR, d) - coordinates.get(nodeL, d);

@@ -949,7 +949,7 @@ Realm::setup_element_fields()
   equationSystems_.register_element_fields(targetNames);
   const int numVolStates = does_mesh_move() ? number_of_states() : 1;
 
-  //if (has_mesh_motion()) {
+  if (has_mesh_motion()) {
   const auto entityRank = realmUsesEdges_ ? stk::topology::EDGE_RANK : stk::topology::ELEM_RANK;
   const std::string fvm_fieldName = realmUsesEdges_ ? "edge_face_velocity_mag" :  "face_velocity_mag";
   const std::string sv_fieldName = realmUsesEdges_ ? "edge_swept_face_volume" :  "swept_face_volume";
@@ -967,7 +967,7 @@ Realm::setup_element_fields()
     stk::mesh::put_field_on_mesh(*faceVelMag, *targetPart, fieldSize, nullptr);
     stk::mesh::put_field_on_mesh(*sweptFaceVolume, *targetPart, fieldSize, nullptr);
   }
-  //}  
+  }  
 }
 
 //--------------------------------------------------------------------------
@@ -983,7 +983,7 @@ Realm::setup_interior_algorithms()
       errorIndicatorAlgDriver_ = new ErrorIndicatorAlgorithmDriver(*this);
   }
 
-  //if (has_mesh_motion()) {
+  if (has_mesh_motion()) {
     const AlgorithmType algType = INTERIOR;
     stk::mesh::PartVector mmPartVec = meshMotionAlg_->get_partvec();
     if (realmUsesEdges_)
@@ -999,7 +999,7 @@ Realm::setup_interior_algorithms()
           MeshVelocityAlg>(algType, p, "mesh_vel");
       }
     }
-  //}
+  }
   
   // loop over all material props targets and register interior algs
   std::vector<std::string> targetNames = get_physics_target_names();
