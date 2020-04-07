@@ -51,22 +51,59 @@ private:
   MotionWaves(const MotionWaves&) = delete;
 
   void load(const YAML::Node&);
-
   void translation_mat(const ThreeDVecType&);
 
-  std::string waveModel_{"Sinusoidal_full_domain"};   
-  double amplitude_{0.1};
-  double waveperiod_{1.0};
-  double wavefrequency_{2.*M_PI}; // Angular frequency omega=2*pi/tau (tau being the period)
-  double wavelength_{1.0};
-  double wavenumber_{2.*M_PI}; // Angular wavenumber k=2*pi/lambda (lambda being the wavenumber)
-  double sealevelz_{0.0};
+  void Stokes_coefficients();
+  void Stokes_parameters();
+  
+  double my_sinh_sin(int i, int j,double phase);
+  double my_cosh_cos(int i, int j,double phase);
+
+  const double g_{9.81};
+
+  std::string waveModel_{"Airy"};   
+  // General parameters for waves
+  double height_{0.1}; // Wave height
+  double period_{1.0}; // Wave period
+  double length_{1.0}; // Wave length
+  double waterdepth_{1.e5}; // Water depth
+  double omega_{2.*M_PI}; // Angular frequency omega=2*pi/tau (tau being the period)
+  double k_{2.*M_PI}; // Angular wavenumber k=2*pi/lambda (lambda being the wavenumber)
+  double sealevelz_{0.0}; // Sea level assumed to be at z=0
+  double c_{1.};   // wave phase velocity c
+
+
+  // Stokes waves parameters
+  int StokesOrder_{2}; // Stokes order - it defaults to 2
+  double a11_{0.};
+  double a22_{0.};
+  double a31_{0.};
+  double a33_{0.};
+  double a42_{0.};
+  double a44_{0.};
+  double a51_{0.};
+  double a53_{0.};
+  double a55_{0.};
+  double b22_{0.};
+  double b31_{0.};
+  double b42_{0.};
+  double b44_{0.};
+  double b53_{0.};
+  double b55_{0.};
+  double c0_{0.};
+  double c2_{0.};
+  double c4_{0.};
+  double d2_{0.};
+  double d4_{0.};
+  double e2_{0.};
+  double e4_{0.};
+  double eps_{0.1};
+  double Q_{0.};
+  double cs_{0.2}; //Mean Stokes drift speed
+
   // Deformation damping function
   double meshdampinglength_{1000};
   int meshdampingcoeff_{3};
-  double dispersion_{1.0};
-  double waterdepth_{50.};
-  double length_{0.};
 };
 
 } // nalu

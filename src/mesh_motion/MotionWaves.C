@@ -28,37 +28,30 @@ void MotionWaves::load(const YAML::Node& node)
 {
   // Get type of input prescribed wave
 	
-  get_if_present(node,"wave_motion_model", waveModel_, waveModel_);
+  get_if_present(node,"waving_boundary", waveModel_, waveModel_);
   // Get vertical mesh damping amplitude
   get_if_present(node, "mesh_damping_length", meshdampinglength_, meshdampinglength_);	
   get_if_present(node, "mesh_damping_coeff", meshdampingcoeff_, meshdampingcoeff_);  
 
-  if (waveModel_=="Sinusoidal_full_domain"){
-  get_if_present(node, "amplitude", amplitude_, amplitude_);
-  get_if_present(node, "waveperiod", waveperiod_, waveperiod_);	
-  get_if_present(node, "wavelength",wavelength_,wavelength_); 
-  // Compute the wave number
+  if (waveModel_=="Airy"){
+  get_if_present(node, "wave_height", height_, height_);
+  get_if_present(node, "wave_length",length_,length_); 
+  get_if_present(node, "water_depth", waterdepth_, waterdepth_);	
+  // Compute parameters
+  k_=2.*M_PI/length_;
+  omega_=std::pow(k_*g_*std::tanh(k_*waterdepth_),0.5);
+  c_=omega_/k_;
+  period_=length_/c_;
   }
-  else if (waveModel_=="Linear_prescribed"){
-  get_if_present(node, "amplitude", amplitude_, amplitude_);
-  get_if_present(node, "waveperiod", waveperiod_, waveperiod_);	
-  get_if_present(node, "wavelength",wavelength_,wavelength_); 
-  }
-  else if (waveModel_=="StokesSecondOrder_prescribed"){
-  get_if_present(node, "amplitude", amplitude_, amplitude_);
-  get_if_present(node, "waveperiod", waveperiod_, waveperiod_);	
-  get_if_present(node, "wavelength",wavelength_,wavelength_);  
-  get_if_present(node, "waterdepth_", waterdepth_, waterdepth_);	
-  }
-  else if (waveModel_=="2DRidge"){
-  get_if_present(node, "amplitude", amplitude_, amplitude_);
-  get_if_present(node, "length", length_, length_); 
-  }
-  else if (waveModel_=="3DHill"){
-  get_if_present(node, "amplitude", amplitude_, amplitude_);
-  get_if_present(node, "length", length_, length_); 
-  }
-  else if (waveModel_ =="External_prescribed"){ 
+  else if (waveModel_=="Stokes"){
+  get_if_present(node, "wave_height", height_, height_);
+  get_if_present(node, "wave_length", length_, length_);  
+  get_if_present(node, "water_depth",  waterdepth_, waterdepth_);
+  get_if_present(node, "Stokes_order", StokesOrder_,StokesOrder_);
+  // Compute parameters
+  k_=2.*M_PI/length_;
+  Stokes_coefficients();
+  Stokes_parameters(); 
   }
   else {
     throw std::runtime_error("invalid wave_motion model specified ");
@@ -70,51 +63,36 @@ void MotionWaves::load(const YAML::Node& node)
   startTime_ = startTime_-eps;
   get_if_present(node, "end_time", endTime_, endTime_);
   endTime_ = endTime_+eps;
-	get_if_present(node, "sea_level_z",sealevelz_,sealevelz_); 
-  // Compute wave-related parameters
-  wavenumber_=2.*M_PI/wavelength_;
-  wavefrequency_=2.*M_PI/waveperiod_;
-  //Define dispersion
-	dispersion_= std::sqrt(std::tanh(wavenumber_*waterdepth_));
-
+  get_if_present(node, "sea_level_z",sealevelz_,sealevelz_); 
 }
+
 void MotionWaves::build_transformation(
   const double time,
   const double* xyz)
 {
-  if(time < (startTime_)) return;
+    if(time < (startTime_)) return;
 
-  double motionTime = (time < endTime_)? time : endTime_;
+    double motionTime = (time < endTime_)? time : endTime_;
 
-  double phase=wavenumber_*xyz[0]-wavefrequency_*motionTime;
-  ThreeDVecType curr_disp={};
-  curr_disp[0]=0.;
-  curr_disp[1]=0.;
+    double phase=k_*xyz[0]-omega_*motionTime;
+    ThreeDVecType curr_disp={};
 		
-	if(waveModel_== "Sinusoidal_full_domain"){
-	curr_disp[2]=sealevelz_+amplitude_*std::cos(phase);
-	}
-	else if(waveModel_== "Linear_prescribed"){
-	curr_disp[2]=sealevelz_+amplitude_*std::cos(phase)*std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_);
-	}
-    else if (waveModel_ == "StokesSecondOrder_prescribed"){
-    curr_disp[2]=sealevelz_+amplitude_*(std::cos(phase)+wavenumber_*amplitude_*(3-dispersion_*dispersion_)/(4.*dispersion_*dispersion_*dispersion_)*std::cos(2.*phase))*std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_);
-    }
-	else if (waveModel_ == "2DRidge"){
-    if(xyz[0]>-length_ && xyz[0]<length_){
-    curr_disp[2]=amplitude_*std::cos(M_PI*xyz[0]/(2.*length_))*std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_);
-    }
-    }
-	else if (waveModel_ == "3DHill"){
-    if(std::pow(xyz[0]*xyz[0]+xyz[1]*xyz[1],0.5)<length_){
-	curr_disp[2]=amplitude_*std::cos(M_PI*std::pow(xyz[0]*xyz[0]+xyz[1]*xyz[1],0.5)/(2.*length_))*std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_);
-    }
-    }
-	else if (waveModel_ =="External_prescribed"){
-	}
-	else {
+    if(waveModel_== "Airy"){
+    curr_disp[0]=0.;
+    curr_disp[1]=0.;
+    curr_disp[2]=sealevelz_+height_/2.*std::cos(phase)*std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_);
+    }else if (waveModel_ == "Stokes"){
+    curr_disp[0]=0.;
+    curr_disp[1]=0.;
+    curr_disp[2]=(eps_*std::cos(phase) // first order term
+                  +std::pow(eps_,2)*b22_*std::cos(2.*phase) // second order term
+                  +std::pow(eps_,3)*b31_*(std::cos(phase)-std::cos(3.*phase))
+                  +std::pow(eps_,4)*b42_*(std::cos(2.*phase)+b44_*std::cos(4*phase))
+                  +std::pow(eps_,5)*(-(b53_+b55_)*std::cos(phase)+b53_*std::cos(3*phase)+b55_*std::cos(5*phase)))/k_;
+                  
+    }else {
     throw std::runtime_error("invalid wave_motion model specified ");
-	}
+    }
 	translation_mat(curr_disp);
 }
 
@@ -143,33 +121,20 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
   double StreamwiseWaveVelocity=0;
   double LateralWaveVelocity=0;
   double VerticalWaveVelocity=0;
-  double phase=wavenumber_*mxyz[0]-wavefrequency_*motionTime;
+  double phase=k_*mxyz[0]-omega_*motionTime;
 	
-    if(waveModel_== "Sinusoidal_full_domain"){
-        VerticalWaveVelocity = amplitude_*wavefrequency_*std::sin(phase);  
-        StreamwiseWaveVelocity = 0.;
-        LateralWaveVelocity =0.;
-    }
-    else if(waveModel_== "Linear_prescribed"){
-        VerticalWaveVelocity = amplitude_*wavefrequency_*std::sin(phase);  
-        StreamwiseWaveVelocity = amplitude_*wavefrequency_*std::cos(phase);
-    }
-    else if (waveModel_ == "StokesSecondOrder_prescribed"){
-        VerticalWaveVelocity=amplitude_*wavefrequency_/std::tanh(wavenumber_*waterdepth_)*std::sin(phase)+3./4.*wavefrequency_*wavenumber_*std::sinh(2*wavenumber_*waterdepth_)/std::pow(std::sinh(wavenumber_*waterdepth_),4)*std::sin(2.*phase);	
-        StreamwiseWaveVelocity= amplitude_*wavefrequency_/std::tanh(wavenumber_*waterdepth_)*std::cos(phase)+3./4.*wavefrequency_*wavenumber_*std::cosh(2*wavenumber_*waterdepth_)/std::pow(std::sinh(wavenumber_*waterdepth_),4)*std::cos(2.*phase);	
-    }
-    else if (waveModel_ == "2DRidge"){
-        VerticalWaveVelocity=0.;
-        StreamwiseWaveVelocity=0.;	
-    }
-    else if (waveModel_ == "3DHill"){
-        VerticalWaveVelocity=0.;
-        StreamwiseWaveVelocity=0.;	
-    }
-	else if (waveModel_ =="External_prescribed"){
-        //StreamwiseWaveVelocity=vel[0];		
-        //LateralWaveVelocity=vel[1];
-        //VerticalWaveVelocity=vel[2];
+    if(waveModel_== "Airy"){
+        StreamwiseWaveVelocity = omega_*height_/2.*std::cosh(k_*waterdepth_)/std::sinh(k_*waterdepth_)*std::cos(phase);
+        VerticalWaveVelocity = omega_*height_/2.*std::sin(phase);  
+    }else if (waveModel_ == "Stokes"){
+        StreamwiseWaveVelocity= my_cosh_cos(1, 1,phase) + my_cosh_cos(2, 2,phase) + my_cosh_cos(3, 1,phase) +
+                                my_cosh_cos(3, 3,phase) + my_cosh_cos(4, 2,phase) + my_cosh_cos(4, 4,phase) +
+                                my_cosh_cos(5, 1,phase) + my_cosh_cos(5, 3,phase) + my_cosh_cos(5, 5,phase);
+        VerticalWaveVelocity=   my_sinh_sin(1, 1,phase) + my_sinh_sin(2, 2,phase) + my_sinh_sin(3, 1,phase) +
+                                my_sinh_sin(3, 3,phase) + my_sinh_sin(4, 2,phase) + my_sinh_sin(4, 4,phase) +
+                                my_sinh_sin(5, 1,phase) + my_sinh_sin(5, 3,phase) + my_sinh_sin(5, 5,phase);
+        StreamwiseWaveVelocity *=c0_+std::sqrt(g_/std::pow(k_,3));
+        VerticalWaveVelocity   *=c0_+std::sqrt(g_/std::pow(k_,3)); 
     }
 	else {
     throw std::runtime_error("invalid wave_motion model specified ");
@@ -190,6 +155,125 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
   
   return vel;
 }
+
+/* Define the Stokes expansion coefficients based on "A Fifth-Order Stokes
+ * Theory for Steady Waves" (J. D. Fenton, 1985)
+ */
+void MotionWaves::Stokes_coefficients()
+{
+    double kd=k_*waterdepth_;
+    if (kd > 50*M_PI)
+        kd=50*M_PI; // Limited value
+
+    double S=1./std::tanh(2*kd); //Hyperbolic secant
+    double Sh=std::sinh(kd);
+    double Th=std::tanh(kd);
+    double CTh = (1+std::exp(-2.*kd))/(1-std::exp(-2*kd)); //Hyperbolic cotangent
+
+    a11_=2.*std::exp(kd)/(std::exp(2*kd)-1); // Hyperbolic cosecant
+    c0_=std::sqrt(Th);
+
+    // Second order coefficients
+    a22_=3.*std::pow(S,2)/(2*std::pow(1-S,2));
+    b22_=CTh*(1+2.*S)/(2*(1-S));
+    c2_=std::sqrt(Th)*(2+7*std::pow(S,2))/(4 * std::pow(1 - S, 2));
+    d2_=-std::sqrt(CTh)/2.;
+    e2_=Th*(2+2*S+5*std::pow(S,2))/(4*std::pow(1-S,2));
+    
+    if(StokesOrder_==2) return;
+
+    // Third order coefficients
+    a31_=(-4 - 20 * S + 10 * std::pow(S, 2) - 13 * std::pow(S, 3)) / (8 * Sh * std::pow(1 - S, 3));
+    a33_=(-2 * std::pow(S, 2) + 11 * std::pow(S, 3)) / (8 * Sh * std::pow(1 - S, 3));
+    b31_=-3 * (1 + 3 * S + 3 * std::pow(S, 2) + 2 * std::pow(S, 3)) / (8 * std::pow(1 - S, 3));
+    
+    if(StokesOrder_==3) return;
+    
+    // Fourth order coefficients
+    a42_=(12 * S - 14 * std::pow(S, 2) - 264 * std::pow(S, 3) - 45 * std::pow(S, 4) - 13 * std::pow(S, 5)) /\
+                           (24 * std::pow(1 - S, 5));
+    a44_=(10 * std::pow(S, 3) - 174 * std::pow(S, 4) + 291 * std::pow(S, 5) + 278 * std::pow(S, 6)) /\
+                           (48 * (3 + 2 * S) * std::pow(1 - S, 5));
+    b42_=CTh * (6 - 26 * S - 182 * std::pow(S, 2) - 204 * std::pow(S, 3) -
+                                     25 * std::pow(S, 4) + 26 * std::pow(S, 5)) / (6 * (3 + 2 * S) * std::pow(1 - S, 4));
+    b44_=CTh * (24 + 92 * S + 122 * std::pow(S, 2) + 66 * std::pow(S, 3) +
+                                     67 * std::pow(S, 4) + 34 * std::pow(S, 5)) / (24 * (3 + 2 * S) * std::pow(1 - S, 4));
+    c4_=std::sqrt(Th) * (4 + 32 * S - 116 * std::pow(S, 2) - 400 * std::pow(S, 3) - 71 * std::pow(S, 4) +
+                                         146 * std::pow(S, 5)) / (32 * std::pow(1 - S, 5));
+    d4_=std::sqrt(CTh) * (2 + 4 * S + std::pow(S, 2) + 2 * std::pow(S, 3)) / (8 * std::pow(1 - S, 3));
+    e4_=Th * (8 + 12 * S - 152 * std::pow(S, 2) - 308 * std::pow(S, 3) - 42 * std::pow(S, 4) +
+                               77 * std::pow(S, 5)) / (32 * std::pow(1 - S, 5));
+    if(StokesOrder_==4) return;
+   
+
+    // Fifth order coefficients
+    a51_=(-1184 + 32 * S + 13232 * std::pow(S, 2) + 21712 * std::pow(S, 3) + 20940 * std::pow(S, 4) +
+                               12554 * std::pow(S, 5) - 500 * std::pow(S, 6) - 3341 * std::pow(S, 7) - 670 * std::pow(S, 8)) /\
+                          (64 * Sh * (3 + 2 * S) * (4 + S) * std::pow(1 - S, 6));
+    a53_=(4 * S + 105 * pow(S, 2) + 198 * std::pow(S, 3) - 1376 * std::pow(S, 4) - 1302 * std::pow(S, 5) -
+                               117 * std::pow(S, 6) + 58 * std::pow(S, 7)) / (32 * Sh * (3 + 2 * S) * std::pow(1 - S, 6));
+    a55_=(-6 * std::pow(S, 3) + 272 * std::pow(S, 4) - 1552 * std::pow(S, 5) + 852 * std::pow(S, 6) +
+                               2029 * std::pow(S, 7) + 430 * std::pow(S, 8)) / (64 * Sh * (3 + 2 * S) * (4 + S) * std::pow(1 - S, 6));
+    b53_=9 * (132 + 17 * S - 2216 * std::pow(S, 2) - 5897 * std::pow(S, 3) - 6292 * std::pow(S, 4) -
+                                   2687 * std::pow(S, 5) + 194 * std::pow(S, 6) + 467 * std::pow(S, 7) + 82 * std::pow(S, 8)) /\
+                              (128 * (3 + 2 * S) * (4 + S) * std::pow(1 - S, 6));
+    b55_=5 * (300 + 1579 * S + 3176 * std::pow(S, 2) + 2949 * std::pow(S, 3) + 1188 * std::pow(S, 4) +
+                                   675 * std::pow(S, 5) + 1326 * std::pow(S, 6) + 827 * std::pow(S, 7) + 130 * std::pow(S, 8)) /\
+                              (384 * (3 + 2 * S) * (4 + S) * std::pow(1 - S, 6));
+
+    if(StokesOrder_==5) return;
+
+    if(StokesOrder_>5 || StokesOrder_<2){
+        throw std::runtime_error("invalid stokes order speficied. It should be between 2,3,4 or 5 ");
+    }
+}
+
+void MotionWaves::Stokes_parameters()
+{
+    k_=2*M_PI/length_;
+    eps_=k_*height_/2.; //Steepness (ka)
+    
+    c_=c0_+std::pow(eps_, 2) * c2_ + std::pow(eps_,4)*c4_*std::sqrt(g_/k_);
+    Q_=c_*waterdepth_*std::sqrt(std::pow(k_,3)/g_)+d2_*std::pow(eps_,2)+
+                                                    d4_*std::pow(eps_,4)*std::sqrt(g_/std::pow(k_,3));
+    cs_=c_-Q_;
+    period_=length_/c_;
+    omega_=c_*k_;
+    return;
+}
+
+double MotionWaves::my_cosh_cos(int i,int j, double phase)
+{
+    double D;
+    if(i==1 && j==1) D=a11_;
+    if(i==2 && j==2) D=a22_;
+    if(i==3 && j==1) D=a31_;
+    if(i==3 && j==3) D=a33_;
+    if(i==4 && j==2) D=a42_;
+    if(i==4 && j==4) D=a44_;
+    if(i==5 && j==1) D=a51_;
+    if(i==5 && j==3) D=a53_;
+    if(i==5 && j==3) D=a55_;
+
+    return std::pow(eps_, i) * D * j * k_* std::cosh(j*k_*waterdepth_)*std::cos(j*phase); 
+}
+
+double MotionWaves::my_sinh_sin(int i,int j, double phase)
+{
+    double D;
+    if(i==1 && j==1) D=a11_;
+    if(i==2 && j==2) D=a22_;
+    if(i==3 && j==1) D=a31_;
+    if(i==3 && j==3) D=a33_;
+    if(i==4 && j==2) D=a42_;
+    if(i==4 && j==4) D=a44_;
+    if(i==5 && j==1) D=a51_;
+    if(i==5 && j==3) D=a53_;
+    if(i==5 && j==3) D=a55_;
+
+    return std::pow(eps_, i) * D * j * k_* std::sinh(j*k_*waterdepth_)*std::sin(j*phase); 
+}
+
 
 void MotionWaves::post_compute_geometry(
   stk::mesh::BulkData& bulk,
