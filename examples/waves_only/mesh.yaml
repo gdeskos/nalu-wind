@@ -10,9 +10,9 @@ nalu_abl_mesh:
 
   vertices:
     - [0.0, 0.0, 0.0]
-    - [5., 5., 1.0]
+    - [12.5663706144, 4.18879020479, 1.0]
 
-  mesh_dimensions: [64, 64, 64]
+  mesh_dimensions: [255, 255, 64]
 
   fluid_part_name: fluid_part 
 

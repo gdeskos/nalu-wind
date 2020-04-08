@@ -57,7 +57,7 @@ void FrameBase::load(const YAML::Node& node)
       meshMotionVec_[i].reset(new MotionDeformingInterior(meta_,motion_def));
     else if (type == "pulsating_sphere")
       meshMotionVec_[i].reset(new MotionPulsatingSphere(meta_,motion_def));
-    else if (type == "waves")
+    else if (type == "waving_boundary")
 			meshMotionVec_[i].reset(new MotionWaves(meta_,motion_def));
 		else if (type == "rotation")
       meshMotionVec_[i].reset(new MotionRotation(motion_def));

@@ -26,9 +26,8 @@ MotionWaves::MotionWaves(
 
 void MotionWaves::load(const YAML::Node& node)
 {
-  // Get type of input prescribed wave
-	
-  get_if_present(node,"waving_boundary", waveModel_, waveModel_);
+  // Get type of input prescribed wave	
+  get_if_present(node,"wave_model", waveModel_, waveModel_);
   // Get vertical mesh damping amplitude
   get_if_present(node, "mesh_damping_length", meshdampinglength_, meshdampinglength_);	
   get_if_present(node, "mesh_damping_coeff", meshdampingcoeff_, meshdampingcoeff_);  
@@ -178,15 +177,13 @@ void MotionWaves::Stokes_coefficients()
     b22_=CTh*(1+2.*S)/(2*(1-S));
     c2_=std::sqrt(Th)*(2+7*std::pow(S,2))/(4 * std::pow(1 - S, 2));
     d2_=-std::sqrt(CTh)/2.;
-    e2_=Th*(2+2*S+5*std::pow(S,2))/(4*std::pow(1-S,2));
-    
+    e2_=Th*(2+2*S+5*std::pow(S,2))/(4*std::pow(1-S,2)); 
     if(StokesOrder_==2) return;
 
     // Third order coefficients
     a31_=(-4 - 20 * S + 10 * std::pow(S, 2) - 13 * std::pow(S, 3)) / (8 * Sh * std::pow(1 - S, 3));
     a33_=(-2 * std::pow(S, 2) + 11 * std::pow(S, 3)) / (8 * Sh * std::pow(1 - S, 3));
     b31_=-3 * (1 + 3 * S + 3 * std::pow(S, 2) + 2 * std::pow(S, 3)) / (8 * std::pow(1 - S, 3));
-    
     if(StokesOrder_==3) return;
     
     // Fourth order coefficients
@@ -220,7 +217,6 @@ void MotionWaves::Stokes_coefficients()
     b55_=5 * (300 + 1579 * S + 3176 * std::pow(S, 2) + 2949 * std::pow(S, 3) + 1188 * std::pow(S, 4) +
                                    675 * std::pow(S, 5) + 1326 * std::pow(S, 6) + 827 * std::pow(S, 7) + 130 * std::pow(S, 8)) /\
                               (384 * (3 + 2 * S) * (4 + S) * std::pow(1 - S, 6));
-
     if(StokesOrder_==5) return;
 
     if(StokesOrder_>5 || StokesOrder_<2){
