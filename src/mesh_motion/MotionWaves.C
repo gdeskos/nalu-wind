@@ -38,19 +38,26 @@ void MotionWaves::load(const YAML::Node& node)
   get_if_present(node, "water_depth", waterdepth_, waterdepth_);	
   // Compute parameters
   k_=2.*M_PI/length_;
+  // This calculates the wave frequency based on the linear dispersion relationship
   omega_=std::pow(k_*g_*std::tanh(k_*waterdepth_),0.5);
   c_=omega_/k_;
+  std::cerr<<" c=  "<<c_<<" d = "<<waterdepth_<<" omega =  "<<omega_<<" g = "<<g_<<std::endl;
+  // Over-write wave phase velocity if specified
+  get_if_present(node, "phase_velocity", c_, c_);	 
+  omega_=c_*k_; 
   period_=length_/c_;
+  std::cerr<<" c=  "<<c_<<" d = "<<waterdepth_<<" omega =  "<<omega_<<" g = "<<g_<<std::endl;
   }
   else if (waveModel_=="Stokes"){
+  get_if_present(node, "Stokes_order", StokesOrder_,StokesOrder_);
   get_if_present(node, "wave_height", height_, height_);
   get_if_present(node, "wave_length", length_, length_);  
   get_if_present(node, "water_depth",  waterdepth_, waterdepth_);
-  get_if_present(node, "Stokes_order", StokesOrder_,StokesOrder_);
   // Compute parameters
   k_=2.*M_PI/length_;
   Stokes_coefficients();
   Stokes_parameters(); 
+  std::cerr<<" c=  "<<c_<<" d = "<<waterdepth_<<" omega =  "<<omega_<<" g = "<<g_<<std::endl;
   }
   else {
     throw std::runtime_error("invalid wave_motion model specified ");
@@ -87,7 +94,8 @@ void MotionWaves::build_transformation(
                   +std::pow(eps_,2)*b22_*std::cos(2.*phase) // second order term
                   +std::pow(eps_,3)*b31_*(std::cos(phase)-std::cos(3.*phase))
                   +std::pow(eps_,4)*b42_*(std::cos(2.*phase)+b44_*std::cos(4*phase))
-                  +std::pow(eps_,5)*(-(b53_+b55_)*std::cos(phase)+b53_*std::cos(3*phase)+b55_*std::cos(5*phase)))/k_;
+                  +std::pow(eps_,5)*(-(b53_+b55_)*std::cos(phase)+b53_*std::cos(3*phase)+b55_*std::cos(5*phase)))/k_
+                  *std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_);
                   
     }else {
     throw std::runtime_error("invalid wave_motion model specified ");
@@ -164,14 +172,14 @@ void MotionWaves::Stokes_coefficients()
     if (kd > 50*M_PI)
         kd=50*M_PI; // Limited value
 
-    double S=1./std::tanh(2*kd); //Hyperbolic secant
+    double S=2 * std::exp(2*kd) / (std::exp(2 * 2*kd) + 1);
+    //Hyperbolic secant
     double Sh=std::sinh(kd);
     double Th=std::tanh(kd);
     double CTh = (1+std::exp(-2.*kd))/(1-std::exp(-2*kd)); //Hyperbolic cotangent
 
     a11_=2.*std::exp(kd)/(std::exp(2*kd)-1); // Hyperbolic cosecant
     c0_=std::sqrt(Th);
-
     // Second order coefficients
     a22_=3.*std::pow(S,2)/(2*std::pow(1-S,2));
     b22_=CTh*(1+2.*S)/(2*(1-S));
@@ -228,8 +236,7 @@ void MotionWaves::Stokes_parameters()
 {
     k_=2*M_PI/length_;
     eps_=k_*height_/2.; //Steepness (ka)
-    
-    c_=c0_+std::pow(eps_, 2) * c2_ + std::pow(eps_,4)*c4_*std::sqrt(g_/k_);
+    c_=(c0_+std::pow(eps_, 2) * c2_ + std::pow(eps_,4)*c4_)*std::sqrt(g_/k_);
     Q_=c_*waterdepth_*std::sqrt(std::pow(k_,3)/g_)+d2_*std::pow(eps_,2)+
                                                     d4_*std::pow(eps_,4)*std::sqrt(g_/std::pow(k_,3));
     cs_=c_-Q_;
@@ -249,7 +256,7 @@ double MotionWaves::my_cosh_cos(int i,int j, double phase)
     if(i==4 && j==4) D=a44_;
     if(i==5 && j==1) D=a51_;
     if(i==5 && j==3) D=a53_;
-    if(i==5 && j==3) D=a55_;
+    if(i==5 && j==5) D=a55_;
 
     return std::pow(eps_, i) * D * j * k_* std::cosh(j*k_*waterdepth_)*std::cos(j*phase); 
 }
@@ -265,7 +272,7 @@ double MotionWaves::my_sinh_sin(int i,int j, double phase)
     if(i==4 && j==4) D=a44_;
     if(i==5 && j==1) D=a51_;
     if(i==5 && j==3) D=a53_;
-    if(i==5 && j==3) D=a55_;
+    if(i==5 && j==5) D=a55_;
 
     return std::pow(eps_, i) * D * j * k_* std::sinh(j*k_*waterdepth_)*std::sin(j*phase); 
 }
