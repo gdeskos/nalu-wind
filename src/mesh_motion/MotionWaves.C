@@ -41,12 +41,10 @@ void MotionWaves::load(const YAML::Node& node)
   // This calculates the wave frequency based on the linear dispersion relationship
   omega_=std::pow(k_*g_*std::tanh(k_*waterdepth_),0.5);
   c_=omega_/k_;
-  std::cerr<<" c=  "<<c_<<" d = "<<waterdepth_<<" omega =  "<<omega_<<" g = "<<g_<<std::endl;
   // Over-write wave phase velocity if specified
   get_if_present(node, "phase_velocity", c_, c_);	 
   omega_=c_*k_; 
   period_=length_/c_;
-  std::cerr<<" c=  "<<c_<<" d = "<<waterdepth_<<" omega =  "<<omega_<<" g = "<<g_<<std::endl;
   }
   else if (waveModel_=="Stokes"){
   get_if_present(node, "Stokes_order", StokesOrder_,StokesOrder_);
@@ -57,7 +55,7 @@ void MotionWaves::load(const YAML::Node& node)
   k_=2.*M_PI/length_;
   Stokes_coefficients();
   Stokes_parameters(); 
-  std::cerr<<" c=  "<<c_<<" d = "<<waterdepth_<<" omega =  "<<omega_<<" g = "<<g_<<std::endl;
+  get_if_present(node, "phase_velocity", c_, c_);	  
   }
   else {
     throw std::runtime_error("invalid wave_motion model specified ");
@@ -90,7 +88,7 @@ void MotionWaves::build_transformation(
     }else if (waveModel_ == "Stokes"){
     curr_disp[0]=0.;
     curr_disp[1]=0.;
-    curr_disp[2]=(eps_*std::cos(phase) // first order term
+    curr_disp[2]=sealevelz_+(eps_*std::cos(phase) // first order term
                   +std::pow(eps_,2)*b22_*std::cos(2.*phase) // second order term
                   +std::pow(eps_,3)*b31_*(std::cos(phase)-std::cos(3.*phase))
                   +std::pow(eps_,4)*b42_*(std::cos(2.*phase)+b44_*std::cos(4*phase))
@@ -140,8 +138,8 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
         VerticalWaveVelocity=   my_sinh_sin(1, 1,phase) + my_sinh_sin(2, 2,phase) + my_sinh_sin(3, 1,phase) +
                                 my_sinh_sin(3, 3,phase) + my_sinh_sin(4, 2,phase) + my_sinh_sin(4, 4,phase) +
                                 my_sinh_sin(5, 1,phase) + my_sinh_sin(5, 3,phase) + my_sinh_sin(5, 5,phase);
-        StreamwiseWaveVelocity *=c0_+std::sqrt(g_/std::pow(k_,3));
-        VerticalWaveVelocity   *=c0_+std::sqrt(g_/std::pow(k_,3)); 
+        StreamwiseWaveVelocity *=c0_*std::sqrt(g_/std::pow(k_,3));
+        VerticalWaveVelocity   *=c0_*std::sqrt(g_/std::pow(k_,3)); 
     }
 	else {
     throw std::runtime_error("invalid wave_motion model specified ");
