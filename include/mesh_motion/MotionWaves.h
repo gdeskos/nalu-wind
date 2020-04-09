@@ -46,6 +46,35 @@ virtual void build_transformation(const double, const double*);
     stk::mesh::PartVector&,
     bool& computedMeshVelDiv );
 
+    struct StokesCoeff{
+        double k;
+        double d;
+        double a11;  
+        double a22;
+        double a31;
+        double a33;
+        double a42;
+        double a44;
+        double a51;
+        double a53;
+        double a55;
+        double b22;
+        double b31;
+        double b42;
+        double b44;
+        double b53;
+        double b55;
+        double c0; 
+        double c2;
+        double c4;
+        double d2;
+        double d4;
+        double e2;
+        double e4;  
+    };
+
+    void get_StokesCoeff(StokesCoeff *stokes);
+
 private:
   MotionWaves() = delete;
   MotionWaves(const MotionWaves&) = delete;

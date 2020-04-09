@@ -167,16 +167,14 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
 void MotionWaves::Stokes_coefficients()
 {
     double kd=k_*waterdepth_;
-    if (kd > 50*M_PI)
-        kd=50*M_PI; // Limited value
+    if (kd > 50*M_PI) kd=50*M_PI; // Limited value
 
-    double S=2 * std::exp(2*kd) / (std::exp(2 * 2*kd) + 1);
-    //Hyperbolic secant
+    double S=2 * std::exp(2*kd) / (std::exp(4*kd) + 1);
     double Sh=std::sinh(kd);
     double Th=std::tanh(kd);
     double CTh = (1+std::exp(-2.*kd))/(1-std::exp(-2*kd)); //Hyperbolic cotangent
 
-    a11_=2.*std::exp(kd)/(std::exp(2*kd)-1); // Hyperbolic cosecant
+    a11_=1./std::sinh(kd); // Hyperbolic cosecant
     c0_=std::sqrt(Th);
     // Second order coefficients
     a22_=3.*std::pow(S,2)/(2*std::pow(1-S,2));
@@ -187,13 +185,13 @@ void MotionWaves::Stokes_coefficients()
     if(StokesOrder_==2) return;
 
     // Third order coefficients
-    a31_=(-4 - 20 * S + 10 * std::pow(S, 2) - 13 * std::pow(S, 3)) / (8 * Sh * std::pow(1 - S, 3));
-    a33_=(-2 * std::pow(S, 2) + 11 * std::pow(S, 3)) / (8 * Sh * std::pow(1 - S, 3));
+    a31_=(-4-20*S+10*std::pow(S, 2)-13*std::pow(S, 3))/(8*Sh*std::pow(1 - S, 3));
+    a33_=(-2 * std::pow(S, 2) + 11 * std::pow(S, 3)) / (8*Sh*std::pow(1 - S, 3));
     b31_=-3 * (1 + 3 * S + 3 * std::pow(S, 2) + 2 * std::pow(S, 3)) / (8 * std::pow(1 - S, 3));
     if(StokesOrder_==3) return;
     
     // Fourth order coefficients
-    a42_=(12 * S - 14 * std::pow(S, 2) - 264 * std::pow(S, 3) - 45 * std::pow(S, 4) - 13 * std::pow(S, 5)) /\
+    a42_=(12*S-14*std::pow(S, 2) - 264 * std::pow(S, 3) - 45 * std::pow(S, 4) - 13 * std::pow(S, 5)) /\
                            (24 * std::pow(1 - S, 5));
     a44_=(10 * std::pow(S, 3) - 174 * std::pow(S, 4) + 291 * std::pow(S, 5) + 278 * std::pow(S, 6)) /\
                            (48 * (3 + 2 * S) * std::pow(1 - S, 5));
@@ -210,9 +208,9 @@ void MotionWaves::Stokes_coefficients()
    
 
     // Fifth order coefficients
-    a51_=(-1184 + 32 * S + 13232 * std::pow(S, 2) + 21712 * std::pow(S, 3) + 20940 * std::pow(S, 4) +
-                               12554 * std::pow(S, 5) - 500 * std::pow(S, 6) - 3341 * std::pow(S, 7) - 670 * std::pow(S, 8)) /\
-                          (64 * Sh * (3 + 2 * S) * (4 + S) * std::pow(1 - S, 6));
+    a51_=(-1184+32*S+13232*std::pow(S, 2)+21712*std::pow(S, 3)+20940*std::pow(S, 4) +
+                               12554*std::pow(S, 5)-500*std::pow(S, 6) - 3341 * std::pow(S, 7) - 670 * std::pow(S, 8))/
+                               (64*Sh*(3+2*S)*(4+S)*std::pow(1-S,6));
     a53_=(4 * S + 105 * pow(S, 2) + 198 * std::pow(S, 3) - 1376 * std::pow(S, 4) - 1302 * std::pow(S, 5) -
                                117 * std::pow(S, 6) + 58 * std::pow(S, 7)) / (32 * Sh * (3 + 2 * S) * std::pow(1 - S, 6));
     a55_=(-6 * std::pow(S, 3) + 272 * std::pow(S, 4) - 1552 * std::pow(S, 5) + 852 * std::pow(S, 6) +
@@ -275,6 +273,33 @@ double MotionWaves::my_sinh_sin(int i,int j, double phase)
     return std::pow(eps_, i) * D * j * k_* std::sinh(j*k_*waterdepth_)*std::sin(j*phase); 
 }
 
+void MotionWaves::get_StokesCoeff(StokesCoeff *stokes)
+{
+    stokes->k=k_;
+    stokes->d=height_;
+    stokes->a11=a11_; 
+    stokes->a22=a22_;
+    stokes->a31=a31_;
+    stokes->a33=a33_;
+    stokes->a42=a42_;
+    stokes->a44=a44_;
+    stokes->a51=a51_;
+    stokes->a53=a53_;
+    stokes->a55=a55_;
+    stokes->b22=b22_;
+    stokes->b31=b31_;
+    stokes->b42=b42_;
+    stokes->b44=b44_;
+    stokes->b53=b53_;
+    stokes->b55=b55_;
+    stokes->c0=c0_; 
+    stokes->c2=c2_;
+    stokes->c4=c4_;
+    stokes->d2=d2_;
+    stokes->d4=d4_;
+    stokes->e2=e2_;
+    stokes->e4=e4_; 
+}
 
 void MotionWaves::post_compute_geometry(
   stk::mesh::BulkData& bulk,
