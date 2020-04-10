@@ -34,10 +34,31 @@ namespace {
 TEST(meshMotion, airy_wave)
 {
   // create a yaml node describing rotation
-  const std::string Airy_Wave_Info =
-    "omega: 3.0              \n"
-    "centroid: [0.3,0.5,0.0] \n"
+  const std::string Airy_Wave_info =
+    "wave_model: Airy            \n"
+    "wave_height: 0.1            \n"
+    "wave_length: 3.14159265359  \n"
+    "water_depth: 0.376991       \n"
+    "mesh_damping_lenth: 1.      \n"
     ;
+  YAML::Node Airy_Wave_node = YAML::Load(Airy_Wave_info);
+  // initialize the mesh Wave motion class
+  unit_test_utils::NaluTest naluObj;
+  sierra::nalu::Realm& realm = naluObj.create_realm();
+
+  sierra::nalu::MotionWaves MotionWaves(realm.meta_data(),Airy_Wave_node);
+
+  // build transformation
+  const double time = 1.0;
+  double xyz[3] = {2.5,1.5,0};
+
+  MotionWaves.build_transformation(time, xyz);
+  std::vector<double> norm = transform(MotionWaves.get_trans_mat(), xyz);
+
+  const double gold_norm_z = 0.0053635368158729754;
+
+  EXPECT_NEAR(norm[2], gold_norm_z, testTol);
+
 }
 
 
@@ -62,7 +83,6 @@ TEST(meshMotion, stokes_coefficients)
   sierra::nalu::MotionWaves::StokesCoeff stokes_coeff;
   MotionWaves.get_StokesCoeff(&stokes_coeff);
 
-  const double kd=stokes_coeff.k * stokes_coeff.d;
   const double gold_A11 = 1.208490;  
   const double gold_A22 = 0.799840;
   const double gold_A31 = -9.105340;
