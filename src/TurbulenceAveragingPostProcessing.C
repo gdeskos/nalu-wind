@@ -180,6 +180,9 @@ TurbulenceAveragingPostProcessing::load(
         get_if_present(y_spec, "compute_lambda_ci", avInfo->computeLambdaCI_, avInfo->computeLambdaCI_);
         get_if_present(y_spec, "compute_mean_resolved_ke", avInfo->computeMeanResolvedKe_, avInfo->computeMeanResolvedKe_);
 
+        // check for TKE budget terms
+        get_if_present(y_spec,"compute_pressure_stress",avInfo->computePressureStress_, avInfo->computePressureStress_) // This should be a simple vector
+
         get_if_present(y_spec, "compute_temperature_sfs_flux",
                        avInfo->computeTemperatureSFS_, avInfo->computeTemperatureSFS_);
         get_if_present(y_spec, "compute_temperature_resolved_flux",
@@ -674,6 +677,10 @@ TurbulenceAveragingPostProcessing::execute()
         compute_reynolds_stress(avInfo->name_, oldTimeFilter, zeroCurrent, dt, s_all_nodes);
       }
 
+      if ( avInfo->computePressureStress_ ) {
+        compute_pressure_stress(avInfo->name_, oldTimeFilter, zeroCurrent, dt, s_all_nodes);
+      }
+      
       if ( avInfo->computeResolvedStress_ ) {
         compute_resolved_stress(avInfo->name_, oldTimeFilter, zeroCurrent, dt, s_all_nodes);
       }
@@ -907,6 +914,63 @@ TurbulenceAveragingPostProcessing::compute_reynolds_stress(
       }
     });
   stress.modify_on_device();
+}
+//--------------------------------------------------------------------------
+//-------- compute_pressure_stress --------------------------------------------
+//--------------------------------------------------------------------------
+void
+TurbulenceAveragingPostProcessing::compute_pressure_stress(
+  const std::string &averageBlockName,
+  const double &oldTimeFilter,
+  const double &zeroCurrent,
+  const double &dt,
+  stk::mesh::Selector s_all_nodes)
+{
+  using MeshIndex = nalu_ngp::NGPMeshTraits<ngp::Mesh>::MeshIndex;
+
+  const int ndim = realm_.spatialDimension_;
+  const std::string velocityAName = "velocity_ra_" + averageBlockName;
+  const std::string pressureAName = "pressure_ra_" + averageBlockName;
+  const std::string stressName = "pressure_stress";
+
+  const auto& meshInfo = realm_.mesh_info();
+  const auto& ngpMesh  = realm_.ngp_mesh();
+  const auto velocity  = nalu_ngp::get_ngp_field(meshInfo, "velocity");
+  const auto velocityA = nalu_ngp::get_ngp_field(meshInfo, velocityAName);
+  const auto pressure  = nalu_ngp::get_ngp_field(meshInfo, "pressure");
+  const auto velocityA = nalu_ngp::get_ngp_field(meshInfo, pressureAName);
+  auto pressure_stress = nalu_ngp::get_ngp_field(meshInfo, stressName);
+
+  const double oldWeight = oldTimeFilter * zeroCurrent;
+  const double currentTimeFilter = currentTimeFilter_;
+
+  nalu_ngp::run_entity_algorithm(
+    "TurbPP::compute_pressure_stress",
+    ngpMesh, stk::topology::NODE_RANK, s_all_nodes,
+    KOKKOS_LAMBDA(const MeshIndex& mi) {
+      int ic = 0;
+
+      for (int i =0; i < ndim; ++i) {
+        const double ui = velocity.get(mi, i);
+        const double uAi = velocityA.get(mi, i);
+        const double uAiOld = (currentTimeFilter * uAi - ui * dt) / oldTimeFilter;
+
+        for (int j = i; j < ndim; ++j) {
+          const double uj = velocity.get(mi, j);
+          const double uAj = velocityA.get(mi, j);
+          const double uAjOld = (currentTimeFilter * uAj - uj * dt) / oldTimeFilter;
+
+          const double stressVal =
+            ((stress.get(mi, ic) + uAiOld * uAjOld) * oldWeight
+             + ui * uj * dt) / currentTimeFilter - uAi * uAj;
+
+          stress.get(mi, ic) = stressVal;
+          ic++;
+        }
+      }
+    });
+  stress.modify_on_device();
+
 }
 
 //--------------------------------------------------------------------------

@@ -118,6 +118,13 @@ public:
     const double &dt,
     stk::mesh::Selector s_all_nodes);
 
+  void compute_pressure_stress(
+    const std::string &averageBlockName,
+    const double &oldTimeFilter,
+    const double &zeroCurrent,
+    const double &dt,
+    stk::mesh::Selector s_all_nodes);
+  
   void compute_favre_stress(
     const std::string &averageBlockName,
     const double &oldTimeFilter,

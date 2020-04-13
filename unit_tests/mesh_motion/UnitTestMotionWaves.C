@@ -39,7 +39,7 @@ TEST(meshMotion, airy_wave)
     "wave_height: 0.1            \n"
     "wave_length: 3.14159265359  \n"
     "water_depth: 0.376991       \n"
-    "mesh_damping_lenth: 1.      \n"
+    "mesh_damping_length: 1.      \n"
     ;
   YAML::Node Airy_Wave_node = YAML::Load(Airy_Wave_info);
   // initialize the mesh Wave motion class
@@ -70,7 +70,7 @@ TEST(meshMotion, stokes_coefficients)
     "wave_height: 0.25           \n"
     "wave_length: 3.14159265359  \n"
     "water_depth: 0.376991       \n"
-    "mesh_damping_lenth: 1.      \n"
+    "mesh_damping_length: 1.      \n"
     ;
   
   YAML::Node Stokes_Wave_node = YAML::Load(Stokes_Wave_info);
