@@ -332,7 +332,7 @@ TurbulenceAveragingPostProcessing::setup()
       }
 
       const int dissipationSize = realm_.spatialDimension_ == 3 ? 6 : 3;
-      if ( avInfo->computeReynoldsStress_ ) {
+      if ( avInfo->computeDissipation_ ) {
         const std::string stressName = "dissipation";
         register_field(stressName, dissipationSize, metaData, targetPart);
       }
@@ -565,6 +565,14 @@ TurbulenceAveragingPostProcessing::review(
 
   if ( avInfo->computeReynoldsStress_ ) {
     NaluEnv::self().naluOutputP0() << "Reynolds Stress will be computed; add reynolds_stress to output"<< std::endl;
+  }
+
+  if ( avInfo->computePressureStress_ ) {
+    NaluEnv::self().naluOutputP0() << "Pressure Stress will be computed; add reynolds_stress to output"<< std::endl;
+  }
+  
+  if ( avInfo->computeDissipation_ ) {
+    NaluEnv::self().naluOutputP0() << "Dissipation will be computed; add reynolds_stress to output"<< std::endl;
   }
 
   if ( avInfo->computeFavreStress_ ) {

@@ -49,10 +49,10 @@ public:
   bool computeMeanResolvedKe_;
 
   // Pressure stresses/strain
-  bool computePressureStress_;
+  bool computePressureStress_{false};
 
   //bool computeThirdOrderMoments_;
-  bool computeDissipation_;
+  bool computeDissipation_{false};
 
   // Temperature stresses
   bool computeTemperatureSFS_{false};
