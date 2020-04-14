@@ -57,7 +57,10 @@ void MotionWaves::load(const YAML::Node& node)
   Stokes_parameters(); 
   get_if_present(node, "phase_velocity", c_, c_);	  
   }
-  else {
+  else if (waveModel_=="3DHill"){
+  get_if_present(node, "wave_height", height_, height_);
+  get_if_present(node, "wave_length", length_, length_);  
+  }else{
     throw std::runtime_error("invalid wave_motion model specified ");
   } 	     
   double eps = std::numeric_limits<double>::epsilon();
@@ -95,6 +98,14 @@ void MotionWaves::build_transformation(
                   +std::pow(eps_,5)*(-(b53_+b55_)*std::cos(phase)+b53_*std::cos(3*phase)+b55_*std::cos(5*phase)))/k_
                   *std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_);
                   
+    }else if (waveModel_ == "3DHill"){
+    curr_disp[0]=0.;
+    curr_disp[1]=0.;
+    if(std::sqrt(xyz[0]*xyz[0]+xyz[1]*xyz[1])<=length_){
+        curr_disp[2]=height_*std::pow(std::cos(M_PI*std::sqrt(xyz[0]*xyz[0]+xyz[1]*xyz[1])/(2.*length_)),2)*std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_); 
+    }else{
+        curr_disp[2]=0.;
+    }
     }else {
     throw std::runtime_error("invalid wave_motion model specified ");
     }
@@ -140,8 +151,11 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
                                 my_sinh_sin(5, 1,phase) + my_sinh_sin(5, 3,phase) + my_sinh_sin(5, 5,phase);
         StreamwiseWaveVelocity *=c0_*std::sqrt(g_/std::pow(k_,3));
         VerticalWaveVelocity   *=c0_*std::sqrt(g_/std::pow(k_,3)); 
-    }
-	else {
+    }else if (waveModel_ == "3DHill"){
+        StreamwiseWaveVelocity=0.;
+        LateralWaveVelocity=0.;
+        VerticalWaveVelocity=0.;
+    }else {
     throw std::runtime_error("invalid wave_motion model specified ");
 	}
 
