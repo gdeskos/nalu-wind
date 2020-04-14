@@ -48,6 +48,12 @@ public:
   bool computeLambdaCI_;
   bool computeMeanResolvedKe_;
 
+  // Pressure stresses/strain
+  bool computePressureStress_;
+
+  //bool computeThirdOrderMoments_;
+  bool computeDissipation_;
+
   // Temperature stresses
   bool computeTemperatureSFS_{false};
   bool computeTemperatureResolved_{false};
