@@ -331,7 +331,7 @@ TurbulenceAveragingPostProcessing::setup()
         register_field(stressName, pressure_stressSize, metaData, targetPart);
       }
 
-      const int pressure_strainSize = realm_.spatialDimension_ == 3 ? 9 : 4;
+      const int pressure_strainSize = realm_.spatialDimension_ == 3 ? 6 : 3;
       if ( avInfo->computePressureStrain_ ) {
         const std::string stressName = "pressure_strain";
         register_field(stressName, pressure_strainSize, metaData, targetPart);
@@ -1055,7 +1055,7 @@ TurbulenceAveragingPostProcessing::compute_pressure_strain(
         const double pAOld = (currentTimeFilter * pA - p * dt) / oldTimeFilter;
           
         for (int i = 0; i < ndim; ++i) {
-            for (int j =0; j < ndim; ++j) {
+            for (int j =i; j < ndim; ++j) {
 
             const double duidxj = dudx.get(mi, ndim * i + j);
             const double dujdxi = dudx.get(mi, ndim * j + i);
