@@ -183,6 +183,13 @@ public:
     const double &dt,
     stk::mesh::Selector s_all_nodes);
 
+  void compute_pressure_strain(
+    const std::string &averageBlockName,
+    const double &oldTimeFilter,
+    const double &zeroCurrent,
+    const double &dt,
+    stk::mesh::Selector s_all_nodes);
+
   void compute_dissipation(
     const std::string &averageBlockName,
     const double &oldTimeFilter,

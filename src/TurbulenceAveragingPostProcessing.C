@@ -180,7 +180,7 @@ TurbulenceAveragingPostProcessing::load(
         get_if_present(y_spec, "compute_lambda_ci", avInfo->computeLambdaCI_, avInfo->computeLambdaCI_);
         get_if_present(y_spec, "compute_mean_resolved_ke", avInfo->computeMeanResolvedKe_, avInfo->computeMeanResolvedKe_);
         get_if_present(y_spec,"compute_pressure_stress",avInfo->computePressureStress_, avInfo->computePressureStress_); // This computes p'p', p'u', p'v', p'w'    
-        //get_if_present(y_spec,"compute_third_order_moments",avInfo->computeThirdOrderMoments_, avInfo->computeThirdOrderMoments_); // This computes u'u'u', u'u'v' etc. 
+        get_if_present(y_spec,"compute_pressure_strain",avInfo->computePressureStrain_, avInfo->computePressureStrain_); // This computes p', p'u', p'v', p'w'    
         get_if_present(y_spec,"compute_dissipation",avInfo->computeDissipation_, avInfo->computeDissipation_); // This computes epsilon = -2 \nu <du'dx dv'dx+...> 
 
 
@@ -331,6 +331,12 @@ TurbulenceAveragingPostProcessing::setup()
         register_field(stressName, pressure_stressSize, metaData, targetPart);
       }
 
+      const int pressure_strainSize = realm_.spatialDimension_ == 3 ? 9 : 4;
+      if ( avInfo->computePressureStrain_ ) {
+        const std::string stressName = "pressure_strain";
+        register_field(stressName, pressure_strainSize, metaData, targetPart);
+      }
+      
       const int dissipationSize = realm_.spatialDimension_ == 3 ? 6 : 3;
       if ( avInfo->computeDissipation_ ) {
         const std::string stressName = "dissipation";
@@ -568,11 +574,15 @@ TurbulenceAveragingPostProcessing::review(
   }
 
   if ( avInfo->computePressureStress_ ) {
-    NaluEnv::self().naluOutputP0() << "Pressure Stress will be computed; add reynolds_stress to output"<< std::endl;
+    NaluEnv::self().naluOutputP0() << "Pressure Stress will be computed; add pressure_stress to output"<< std::endl;
+  }
+  
+  if ( avInfo->computePressureStrain_ ) {
+    NaluEnv::self().naluOutputP0() << "Pressure Strain will be computed; add pressure_strain to output"<< std::endl;
   }
   
   if ( avInfo->computeDissipation_ ) {
-    NaluEnv::self().naluOutputP0() << "Dissipation will be computed; add reynolds_stress to output"<< std::endl;
+    NaluEnv::self().naluOutputP0() << "Dissipation will be computed; add dissipation to output"<< std::endl;
   }
 
   if ( avInfo->computeFavreStress_ ) {
@@ -701,13 +711,14 @@ TurbulenceAveragingPostProcessing::execute()
       if ( avInfo->computePressureStress_ ) {
         compute_pressure_stress(avInfo->name_, oldTimeFilter, zeroCurrent, dt, s_all_nodes);
       }
-      
+     
+      if ( avInfo->computePressureStrain_ ) {
+        compute_pressure_strain(avInfo->name_, oldTimeFilter, zeroCurrent, dt, s_all_nodes);
+      }
+
       if ( avInfo->computeDissipation_ ) {
         compute_dissipation(avInfo->name_, oldTimeFilter, zeroCurrent, dt, s_all_nodes);
       }
-      //if ( avInfo->computeThirdOrderMoments_ ) {
-      //  compute_third_order_moments(avInfo->name_, oldTimeFilter, zeroCurrent, dt, s_all_nodes);
-      //}
       
       if ( avInfo->computeResolvedStress_ ) {
         compute_resolved_stress(avInfo->name_, oldTimeFilter, zeroCurrent, dt, s_all_nodes);
@@ -1005,61 +1016,66 @@ TurbulenceAveragingPostProcessing::compute_pressure_stress(
 }
 
 //--------------------------------------------------------------------------
-//-------- compute_third_order_moments -------------------------------------
+//-------- compute_pressure_strain --------------------------------------------
 //--------------------------------------------------------------------------
-//void
-//TurbulenceAveragingPostProcessing::compute_third_order_moments(
-//  const std::string &averageBlockName,
-//  const double &oldTimeFilter,
-//  const double &zeroCurrent,
-//  const double &dt,
-//  stk::mesh::Selector s_all_nodes)
-//{
-//  using MeshIndex = nalu_ngp::NGPMeshTraits<ngp::Mesh>::MeshIndex;
-//
-//  const int ndim = realm_.spatialDimension_;
-//  const std::string velocityAName = "velocity_ra_" + averageBlockName;
-//  const std::string reynoldsStressName = "reynolds_stress";
-//  const std::string ThirdOrderMomentName = "third_order_moments";
-//
-//  const auto& meshInfo = realm_.mesh_info();
-//  const auto& ngpMesh  = realm_.ngp_mesh();
-//  const auto velocity  = nalu_ngp::get_ngp_field(meshInfo, "velocity");
-//  const auto velocityA = nalu_ngp::get_ngp_field(meshInfo, velocityAName);
-//  auto third_order_moments = nalu_ngp::get_ngp_field(meshInfo, ThirdOrderMomentName);
-//
-//  const double oldWeight = oldTimeFilter * zeroCurrent;
-//  const double currentTimeFilter = currentTimeFilter_;
-//
-//  nalu_ngp::run_entity_algorithm(
-//    "TurbPP::compute_third_order_moments",
-//    ngpMesh, stk::topology::NODE_RANK, s_all_nodes,
-//    KOKKOS_LAMBDA(const MeshIndex& mi) {
-//        int ic = 0; 
-//        for (int i = 0; i < ndim; ++i) {
-//          const double ui = velocity.get(mi, i);
-//          const double uAi = velocityA.get(mi, i);
-//          const double uAiOld = (currentTimeFilter * uAi - ui * dt) / oldTimeFilter;
-//            for (int j=i; j< ndim; ++j) {
-//                const double uj = velocity.get(mi, j);
-//                const double uAj = velocityA.get(mi, j);
-//                const double uAjOld = (currentTimeFilter * uAj - uj * dt) / oldTimeFilter;
-//                for (int k=0; k<ndim; ++k){
-//                    const double uk = velocity.get(mi,k);
-//                    const double uAk = velocityA.get(mi,k);
-//                    const double uAkOld = (currentTimeFilter * uAk - uk * dt) / oldTimeFilter;
-//
-//                    const double thirdOrderMomentVal =
-//                    ((third_order_moments.get(mi, ic) + uAiOld * uAjOld* uAkOld) * oldWeight
-//                        + ui * uj * uk * dt) / currentTimeFilter + 2.*uAi * uAj * uAk ; // Its missing three terms
-//                    third_order_moments.get(mi, ic) = thirdOrderMomentVal;
-//                    ic++;
-//                }
-//            }
-//        } 
-//    });
-//  third_order_moments.modify_on_device();
-//}
+void
+TurbulenceAveragingPostProcessing::compute_pressure_strain(
+  const std::string &averageBlockName,
+  const double &oldTimeFilter,
+  const double &zeroCurrent,
+  const double &dt,
+  stk::mesh::Selector s_all_nodes)
+{
+  using MeshIndex = nalu_ngp::NGPMeshTraits<ngp::Mesh>::MeshIndex;
+
+  const int ndim = realm_.spatialDimension_;
+  const std::string dudxAName = "dudx_ra_" + averageBlockName;
+  const std::string pressureAName = "pressure_ra_" + averageBlockName;
+  const std::string strainName = "pressure_strain";
+
+
+  const auto& meshInfo = realm_.mesh_info();
+  const auto& ngpMesh  = realm_.ngp_mesh();
+  const auto dudx  = nalu_ngp::get_ngp_field(meshInfo, "dudx");
+  const auto dudxA  = nalu_ngp::get_ngp_field(meshInfo, dudxAName);
+  const auto pressure  = nalu_ngp::get_ngp_field(meshInfo, "pressure");
+  const auto pressureA = nalu_ngp::get_ngp_field(meshInfo, pressureAName);
+  auto pressure_strain = nalu_ngp::get_ngp_field(meshInfo, strainName);
+
+  const double oldWeight = oldTimeFilter * zeroCurrent;
+  const double currentTimeFilter = currentTimeFilter_;
+
+  nalu_ngp::run_entity_algorithm(
+    "TurbPP::compute_pressure_strain",
+    ngpMesh, stk::topology::NODE_RANK, s_all_nodes,
+    KOKKOS_LAMBDA(const MeshIndex& mi) {
+        int ic = 0;
+        const double p = pressure.get(mi, 0);
+        const double pA = pressureA.get(mi, 0);
+        const double pAOld = (currentTimeFilter * pA - p * dt) / oldTimeFilter;
+          
+        for (int i = 0; i < ndim; ++i) {
+            for (int j =0; j < ndim; ++j) {
+
+            const double duidxj = dudx.get(mi, ndim * i + j);
+            const double dujdxi = dudx.get(mi, ndim * j + i);
+            const double duidxjA = dudxA.get(mi, ndim * i + j);
+            const double dujdxiA = dudxA.get(mi, ndim * j + i);
+            const double duidxjAOld = (currentTimeFilter * duidxjA - duidxj*dt) / oldTimeFilter;
+            const double dujdxiAOld = (currentTimeFilter * dujdxiA - dujdxi*dt) / oldTimeFilter;
+
+            const double strainVal =
+            ((pressure_strain.get(mi, ic) + pAOld * (duidxjAOld+dujdxiAOld) ) * oldWeight
+             + p *(duidxj+dujdxi)*dt)/currentTimeFilter-pA*(duidxj+dujdxi) ;
+            pressure_strain.get(mi, ic) = strainVal;
+            ic++;
+            }
+        } 
+    });
+  pressure_strain.modify_on_device();
+
+}
+
 
 //--------------------------------------------------------------------------
 //-------- compute_dissipation ------- -------------------------------------
@@ -1082,7 +1098,6 @@ TurbulenceAveragingPostProcessing::compute_dissipation(
   const auto& ngpMesh  = realm_.ngp_mesh();
   const auto dudx  = nalu_ngp::get_ngp_field(meshInfo, "dudx");
   const auto dudxA  = nalu_ngp::get_ngp_field(meshInfo, dudxAName);
-  const auto viscosity = nalu_ngp::get_ngp_field(meshInfo,"viscosity");
   auto dissipation = nalu_ngp::get_ngp_field(meshInfo, dissipationName);
 
   const double oldWeight = oldTimeFilter * zeroCurrent;
@@ -1112,7 +1127,7 @@ TurbulenceAveragingPostProcessing::compute_dissipation(
             } 
                 const double dissipation_average_val = ((dissipation.get(mi, ic) + diss_ijAOld) * oldWeight
                                                         + diss_ij * dt) / currentTimeFilter -diss_ijA;
-                                                    dissipation.get(mi, ic) = -2*viscosity.get(mi,ic)*dissipation_average_val;
+                                                    dissipation.get(mi, ic) = -2*dissipation_average_val;
                 ic++;
             } 
         }

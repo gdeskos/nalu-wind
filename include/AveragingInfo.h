@@ -50,6 +50,7 @@ public:
 
   // Pressure stresses/strain
   bool computePressureStress_{false};
+  bool computePressureStrain_{false};
 
   //bool computeThirdOrderMoments_;
   bool computeDissipation_{false};
