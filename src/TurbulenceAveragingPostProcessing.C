@@ -181,8 +181,8 @@ TurbulenceAveragingPostProcessing::load(
         get_if_present(y_spec, "compute_mean_resolved_ke", avInfo->computeMeanResolvedKe_, avInfo->computeMeanResolvedKe_);
         get_if_present(y_spec,"compute_pressure_stress",avInfo->computePressureStress_, avInfo->computePressureStress_); // This computes p'p', p'u', p'v', p'w'    
         get_if_present(y_spec,"compute_pressure_strain",avInfo->computePressureStrain_, avInfo->computePressureStrain_); // This computes p', p'u', p'v', p'w'    
-        get_if_present(y_spec,"compute_dissipation",avInfo->computeDissipation_, avInfo->computeDissipation_); // This computes epsilon = -2 \nu <du'dx dv'dx+...> 
-
+        get_if_present(y_spec,"compute_dissipation",avInfo->computeDissipation_, avInfo->computeDissipation_); // This computes epsilon = -2 <du'dx dv'dx+...> 
+        get_if_present(y_spec,"compute_turbulence_transport_stress",avInfo->computeTurbulenceTransportStress_, avInfo->computeTurbulenceTransportStress_); // This computes T =  <ui'uj'uk'>  
 
         get_if_present(y_spec, "compute_temperature_sfs_flux",
                        avInfo->computeTemperatureSFS_, avInfo->computeTemperatureSFS_);
@@ -343,6 +343,12 @@ TurbulenceAveragingPostProcessing::setup()
         register_field(stressName, dissipationSize, metaData, targetPart);
       }
 
+      const int turbulence_transport_stressSize = realm_.spatialDimension_ == 3 ? 6 : 3;
+      if ( avInfo->computeTurbulenceTransportStress_ ) {
+        const std::string stressName = "turbulence_transport_stress";
+        register_field(stressName, turbulence_transport_stressSize, metaData, targetPart);
+      }
+      
       if ( avInfo->computeFavreStress_ ) {
         const std::string stressName = "favre_stress";
         register_field(stressName, stressSize, metaData, targetPart);
@@ -585,6 +591,10 @@ TurbulenceAveragingPostProcessing::review(
     NaluEnv::self().naluOutputP0() << "Dissipation will be computed; add dissipation to output"<< std::endl;
   }
 
+  if ( avInfo->computeTurbulenceTransportStress_ ) {
+    NaluEnv::self().naluOutputP0() << "Turbulence transport stress will be computed; add turbulence_transport_stress to output"<< std::endl;
+  }
+  
   if ( avInfo->computeFavreStress_ ) {
     NaluEnv::self().naluOutputP0() << "Favre Stress will be computed; add favre_stress to output"<< std::endl;
   }
@@ -718,6 +728,10 @@ TurbulenceAveragingPostProcessing::execute()
 
       if ( avInfo->computeDissipation_ ) {
         compute_dissipation(avInfo->name_, oldTimeFilter, zeroCurrent, dt, s_all_nodes);
+      }
+      
+      if ( avInfo->computeTurbulenceTransportStress_ ) {
+        compute_turbulence_transport_stress(avInfo->name_, oldTimeFilter, zeroCurrent, dt, s_all_nodes);
       }
       
       if ( avInfo->computeResolvedStress_ ) {
@@ -1066,7 +1080,7 @@ TurbulenceAveragingPostProcessing::compute_pressure_strain(
 
             const double strainVal =
             ((pressure_strain.get(mi, ic) + pAOld * (duidxjAOld+dujdxiAOld) ) * oldWeight
-             + p *(duidxj+dujdxi)*dt)/currentTimeFilter-pA*(duidxj+dujdxi) ;
+             + p *(duidxj+dujdxi)*dt)/currentTimeFilter-pA*(duidxjA+dujdxiA) ;
             pressure_strain.get(mi, ic) = strainVal;
             ic++;
             }
@@ -1123,6 +1137,7 @@ TurbulenceAveragingPostProcessing::compute_dissipation(
                 const double duidxkAOld = (currentTimeFilter * duidxkA - duidxk * dt) / oldTimeFilter;
                 const double dujdxkAOld = (currentTimeFilter * dujdxkA - dujdxk * dt) / oldTimeFilter;
                 diss_ij     += duidxk*dujdxk;
+                diss_ijA    += duidxkA*dujdxkA;
                 diss_ijAOld += duidxkAOld*dujdxkAOld;
             } 
                 const double dissipation_average_val = ((dissipation.get(mi, ic) + diss_ijAOld) * oldWeight
@@ -1133,6 +1148,69 @@ TurbulenceAveragingPostProcessing::compute_dissipation(
         }
     });
   dissipation.modify_on_device();
+}
+
+//--------------------------------------------------------------------------
+//-------- compute_turbulence_transport_stress------------------------------
+//--------------------------------------------------------------------------
+void
+TurbulenceAveragingPostProcessing::compute_turbulence_transport_stress(
+  const std::string &averageBlockName,
+  const double &oldTimeFilter,
+  const double &zeroCurrent,
+  const double &dt,
+  stk::mesh::Selector s_all_nodes)
+{
+  
+  using MeshIndex = nalu_ngp::NGPMeshTraits<ngp::Mesh>::MeshIndex;
+
+  const int ndim = realm_.spatialDimension_;
+  const std::string velocityAName = "velocity_ra_" + averageBlockName;
+  const std::string stressName = "turbulence_transport_stress";
+
+  const auto& meshInfo = realm_.mesh_info();
+  const auto& ngpMesh = realm_.ngp_mesh();
+  const auto velocity = nalu_ngp::get_ngp_field(meshInfo, "velocity");
+  const auto velocityA = nalu_ngp::get_ngp_field(meshInfo, velocityAName);
+  auto stress = nalu_ngp::get_ngp_field(meshInfo, stressName);
+
+  const double oldWeight = oldTimeFilter * zeroCurrent;
+  const double currentTimeFilter = currentTimeFilter_;
+
+  nalu_ngp::run_entity_algorithm(
+    "TurbPP::compute_turbulence_transport_stress",
+    ngpMesh, stk::topology::NODE_RANK, s_all_nodes,
+    KOKKOS_LAMBDA(const MeshIndex& mi) {
+      int ic = 0;
+      for (int i =0; i < ndim; ++i) {
+        const double ui = velocity.get(mi, i);
+        const double uAi = velocityA.get(mi, i);
+        const double uAiOld = (currentTimeFilter * uAi - ui * dt) / oldTimeFilter;
+
+        for (int j = i; j < ndim; ++j) {
+          const double uj = velocity.get(mi, j);
+          const double uAj = velocityA.get(mi, j);
+          const double uAjOld = (currentTimeFilter * uAj - uj * dt) / oldTimeFilter;
+          
+          double uiujuk=0; double uiujukA=0; double uiujukAOld=0; 
+          for (int k=0; k <ndim; ++k){
+          const double uk = velocity.get(mi, k);
+          const double uAk = velocityA.get(mi, k);
+          const double uAkOld = (currentTimeFilter * uAk - uk * dt) / oldTimeFilter;
+          uiujuk     +=ui*uj*uk;
+          uiujukA    +=uAi*uAj*uAk;
+          uiujukAOld +=uAiOld*uAjOld*uAkOld;
+          }
+          const double stressVal =
+            ((stress.get(mi, ic) + uiujukAOld) * oldWeight
+             + uiujuk * dt) / currentTimeFilter;
+
+          stress.get(mi, ic) = stressVal;
+          ic++;
+        }
+      }
+    });
+  stress.modify_on_device();
 }
 
 //--------------------------------------------------------------------------

@@ -54,6 +54,7 @@ public:
 
   //bool computeThirdOrderMoments_;
   bool computeDissipation_{false};
+  bool computeTurbulenceTransportStress_{false};
 
   // Temperature stresses
   bool computeTemperatureSFS_{false};
