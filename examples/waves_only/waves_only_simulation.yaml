@@ -98,13 +98,14 @@ realms:
       frame: non_inertial
       motion:
         - type: waving_boundary
-          wave_model: Stokes 
+          wave_model: Airy
           Stokes_order: 3
-          wave_height: 0.25 
-          wave_length: 3.14159265359
+          wave_height: 0.1 
+          wave_length: 1.570796327
           water_depth: 31.4159265359
+          phase_velocity: 25.
           mesh_damping_length: 1.
-          mesh_damping_coeff : 1
+          mesh_damping_coeff : 3
 
   solution_options:
     name: myOptions

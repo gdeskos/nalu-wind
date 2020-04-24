@@ -95,7 +95,7 @@ private:
   double height_{0.1}; // Wave height
   double period_{1.0}; // Wave period
   double length_{1.0}; // Wave length
-  double waterdepth_{1.e5}; // Water depth
+  double waterdepth_{100}; // Water depth
   double omega_{2.*M_PI}; // Angular frequency omega=2*pi/tau (tau being the period)
   double k_{2.*M_PI}; // Angular wavenumber k=2*pi/lambda (lambda being the wavenumber)
   double sealevelz_{0.0}; // Sea level assumed to be at z=0

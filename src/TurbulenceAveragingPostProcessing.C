@@ -1142,7 +1142,7 @@ TurbulenceAveragingPostProcessing::compute_dissipation(
             } 
                 const double dissipation_average_val = ((dissipation.get(mi, ic) + diss_ijAOld) * oldWeight
                                                         + diss_ij * dt) / currentTimeFilter -diss_ijA;
-                                                    dissipation.get(mi, ic) = -2*dissipation_average_val;
+                                                    dissipation.get(mi, ic) = dissipation_average_val;
                 ic++;
             } 
         }
