@@ -32,7 +32,11 @@ void MotionWaves::load(const YAML::Node& node)
   get_if_present(node, "mesh_damping_length", meshdampinglength_, meshdampinglength_);	
   get_if_present(node, "mesh_damping_coeff", meshdampingcoeff_, meshdampingcoeff_);  
 
-  if (waveModel_=="Airy"){
+  if (waveModel_ == "StationaryBumps"){
+  get_if_present(node, "wave_height", height_, height_);
+  get_if_present(node, "wave_length",length_,length_); 
+  }
+  else if (waveModel_=="Airy"){
   get_if_present(node, "wave_height", height_, height_);
   get_if_present(node, "wave_length",length_,length_); 
   get_if_present(node, "water_depth", waterdepth_, waterdepth_);	
@@ -83,8 +87,11 @@ void MotionWaves::build_transformation(
 
     double phase=k_*xyz[0]-omega_*motionTime;
     ThreeDVecType curr_disp={};
-		
-    if(waveModel_== "Airy"){
+	if(waveModel_=="StationaryBumps"){
+    curr_disp[0]=0.;
+    curr_disp[1]=0.;
+    curr_disp[2]=sealevelz_+height_/2.*std::cos(k_*xyz[0])*std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_);
+    }else if(waveModel_== "Airy"){
     curr_disp[0]=0.;
     curr_disp[1]=0.;
     curr_disp[2]=sealevelz_+height_/2.*std::cos(phase)*std::pow(1-xyz[2]/meshdampinglength_,meshdampingcoeff_);
@@ -152,6 +159,10 @@ MotionBase::ThreeDVecType MotionWaves::compute_velocity(
         StreamwiseWaveVelocity *=c0_*std::sqrt(g_/std::pow(k_,3));
         VerticalWaveVelocity   *=c0_*std::sqrt(g_/std::pow(k_,3)); 
     }else if (waveModel_ == "3DHill"){
+        StreamwiseWaveVelocity=0.;
+        LateralWaveVelocity=0.;
+        VerticalWaveVelocity=0.;
+    }else if (waveModel_ == "StationaryBumps"){
         StreamwiseWaveVelocity=0.;
         LateralWaveVelocity=0.;
         VerticalWaveVelocity=0.;
