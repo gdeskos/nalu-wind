@@ -35,13 +35,13 @@ void MotionWaves::load(const YAML::Node& node)
   if (waveModel_ == "StationaryBumps"){
   get_if_present(node, "wave_height", height_, height_);
   get_if_present(node, "wave_length",length_,length_); 
+  // Compute parameters
+  k_=2.*M_PI/length_;
   }
   else if (waveModel_=="Airy"){
   get_if_present(node, "wave_height", height_, height_);
   get_if_present(node, "wave_length",length_,length_); 
   get_if_present(node, "water_depth", waterdepth_, waterdepth_);	
-  // Compute parameters
-  k_=2.*M_PI/length_;
   // This calculates the wave frequency based on the linear dispersion relationship
   omega_=std::pow(k_*g_*std::tanh(k_*waterdepth_),0.5);
   c_=omega_/k_;
