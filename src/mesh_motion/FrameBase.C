@@ -72,7 +72,7 @@ void FrameBase::load(const YAML::Node& node)
       motionKernels_[i].reset(new MotionWavesKernel(meta_,motion_def));
     else
       throw std::runtime_error("FrameBase: Invalid mesh motion type: " + type);
-
+      
   } // end for loop - i index
 }
 
